@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<Import Project="../../version.props"></Import>
+
+	<PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>KetPsi.Results</RootNamespace>
+    <AssemblyName>KetPsi.Results</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Description>High-performance Result pattern library for application and infrastructure layers with structured errors, metadata capture, and functional helpers.</Description>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="KetPsi.Results.Tests"/>
+	</ItemGroup>
+</Project>
