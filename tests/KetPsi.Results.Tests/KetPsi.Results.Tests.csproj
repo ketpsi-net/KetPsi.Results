@@ -35,7 +35,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\KetPsi.Results.csproj" />
+    <ProjectReference Include="..\..\src\KetPsi.Results\KetPsi.Results.csproj" />
   </ItemGroup>
 
 </Project>
