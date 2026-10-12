@@ -8,7 +8,7 @@ namespace KetPsi.Results.Tests;
 /// </summary>
 public class ResultErrorMessageHandlerTests
 {
-    private static FailedResult Fail(ref ResultErrorMessageHandler msg)
+    private static Result Fail(ref ResultErrorMessageHandler msg)
         => Result.Failed(ErrorType.Validation, "test.code", ref msg);
 
     // ───────────────────────────── Basic ─────────────────────────────

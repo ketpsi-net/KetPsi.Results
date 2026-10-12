@@ -56,10 +56,10 @@ public class ResultBasicTests
     {
         var result = Result.Failed("something went wrong");
         Assert.True(result.IsFailed());
-        Assert.Single(result.Errors);
-        Assert.Equal("server.internal_error", result.Errors[0].Code);
-        Assert.Equal("something went wrong", result.Errors[0].Message);
-        Assert.Equal(ErrorType.Failure, result.Errors[0].Type);
+        Assert.Single(result.GetErrors());
+        Assert.Equal("server.internal_error", result.GetErrors()[0].Code);
+        Assert.Equal("something went wrong", result.GetErrors()[0].Message);
+        Assert.Equal(ErrorType.Failure, result.GetErrors()[0].Type);
     }
 
     [Fact]
@@ -67,8 +67,8 @@ public class ResultBasicTests
     {
         var result = Result.Failed<int>("boom");
         Assert.True(result.IsFailed());
-        Assert.Equal("boom", result.Errors[0].Message);
-        Assert.Equal(ErrorType.Failure, result.Errors[0].Type);
+        Assert.Equal("boom", result.FirstError()!.Message);
+        Assert.Equal(ErrorType.Failure, result.FirstError()!.Type);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public class ResultBasicTests
     {
         var error = ErrorResult.Create(ErrorType.Validation, "v.1", "bad");
         var result = Result.Failed(error);
-        Assert.Same(error, result.Errors[0]);
+        Assert.Same(error, result.FirstError());
     }
 
     [Fact]
@@ -103,9 +103,9 @@ public class ResultBasicTests
         var e1 = ErrorResult.Create(ErrorType.Validation, "v.1", "a");
         var e2 = ErrorResult.Create(ErrorType.NotFound, "n.1", "b");
         var result = Result.Failed(e1, e2);
-        Assert.Equal(2, result.Errors.Count);
-        Assert.Equal("v.1", result.Errors[0].Code);
-        Assert.Equal("n.1", result.Errors[1].Code);
+        Assert.Equal(2, result.GetErrors().Count);
+        Assert.Equal("v.1", result.GetErrors()[0].Code);
+        Assert.Equal("n.1", result.GetErrors()[1].Code);
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public class ResultBasicTests
             ErrorResult.Create(ErrorType.Forbidden, "f.1", "b")
         ];
         var result = Result.Failed(list);
-        Assert.Equal(2, result.Errors.Count);
+        Assert.Equal(2, result.GetErrors().Count);
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class ResultBasicTests
         var result = Result.Failed<int>(
             ErrorResult.Create(ErrorType.Validation, "v.1", "a"),
             ErrorResult.Create(ErrorType.NotFound, "n.1", "b"));
-        Assert.Equal(2, result.Errors.Count);
+        Assert.Equal(2, result.GetErrors().Count);
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class ResultBasicTests
         Assert.Equal("custom", Result.Business.StateConflict("custom").FirstError()!.Message);
         Assert.Equal("custom", Result.Validation.InvalidInput("custom").FirstError()!.Message);
         Assert.Equal("custom", Result.System.InternalError("custom").FirstError()!.Message);
-        Assert.Equal("custom", Result.Service.Unavailable("service","code","custom").FirstError()!.Message);
+        Assert.Equal("custom", Result.Service.Unavailable("service", "code", "custom").FirstError()!.Message);
         Assert.Equal("custom", Result.System.ExecutionCanceled("custom").FirstError()!.Message);
     }
 
@@ -417,8 +417,8 @@ public class ResultBasicTests
     public void FirstError_Property_OnFailedResult()
     {
         var result = Result.Failed("x");
-        Assert.NotNull(result.FirstError);
-        Assert.Equal("x", result.FirstError!.Message);
+        Assert.NotNull(result.FirstError());
+        Assert.Equal("x", result.FirstError()!.Message);
     }
 
     [Fact]

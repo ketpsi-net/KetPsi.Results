@@ -30,14 +30,18 @@ public class ResultHttpAndMiscTests
         var result = Result.Failed(
             ErrorResult.Create(ErrorType.Validation, "v", "a"),
             ErrorResult.Create(ErrorType.NotFound, "n", "b"));
-        Assert.Equal(400, result.ToStatusCode());
+
+        Assert.True(result.IsFailed());
+
+        Assert.Equal(400, (result as FailedResult)!.ToStatusCode());
     }
 
     [Fact]
     public void FailedResultGeneric_ToStatusCode()
     {
         var result = Result.Failed<string>(ErrorType.Forbidden, "f", "no");
-        Assert.Equal(403, result.ToStatusCode());
+        Assert.True(result.IsFailed());
+        Assert.Equal(403, (result as FailedResult<string>)!.ToStatusCode());
     }
 
     // ───────────────────────────── ProblemDetails ─────────────────────────────
@@ -60,7 +64,8 @@ public class ResultHttpAndMiscTests
     public void ToProblemDetails_NullInstance()
     {
         var result = Result.Failed("x");
-        var pd = result.ToProblemDetails();
+        Assert.True(result.IsFailed());
+        var pd = (result as FailedResult)!.ToProblemDetails();
         Assert.Null(pd["instance"]);
     }
 
@@ -70,7 +75,10 @@ public class ResultHttpAndMiscTests
         var result = Result.Failed(
             ErrorResult.Create(ErrorType.Validation, "v.1", "a"),
             ErrorResult.Create(ErrorType.NotFound, "n.1", "b"));
-        var pd = result.ToProblemDetails();
+
+        Assert.True(result.IsFailed());
+
+        var pd = (result as FailedResult)!.ToProblemDetails();
         var errors = Assert.IsAssignableFrom<Array>(pd["errors"]);
         Assert.Equal(2, errors.Length);
     }

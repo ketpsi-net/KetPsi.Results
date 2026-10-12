@@ -349,7 +349,7 @@ public class ResultJsonConverterTests
             "Invalid grant",
             new Dictionary<string, object?> { ["status_code"] = 400 });
 
-        Result<string> original = Result.Failed(error);
+        var original = Result.Failed(error);
         var options = CreateOptions();
         var json = JsonSerializer.Serialize(original, options);
         var restored = JsonSerializer.Deserialize<Result<string>>(json, options);

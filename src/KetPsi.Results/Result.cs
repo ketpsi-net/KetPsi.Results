@@ -22,23 +22,23 @@ public abstract partial record Result
 
     /// <summary>Creates a successful non-generic result.</summary>
     /// <returns>A non-generic <see cref="SuccessResult"/>.</returns>
-    public static SuccessResult Success() => new();
+    public static Result Success() => new SuccessResult();
 
     /// <summary>Creates a successful generic result containing the specified value.</summary>
     /// <typeparam name="T">The type of the underlying value.</typeparam>
     /// <param name="value">The data payload to return.</param>
     /// <returns>A generic <see cref="SuccessResult{T}"/>.</returns>
-    public static SuccessResult<T> Success<T>(T value) => new(value);
+    public static Result<T> Success<T>(T value) => new SuccessResult<T>(value);
 
     /// <summary>Creates an in-progress non-generic result.</summary>
     /// <returns>A non-generic <see cref="InProgressResult"/>.</returns>
-    public static InProgressResult InProgress() => new();
+    public static Result InProgress() => new InProgressResult();
 
     /// <summary>Creates an in-progress generic result containing a tracking value.</summary>
     /// <typeparam name="T">The type of the tracking value.</typeparam>
     /// <param name="value">The tracking identifier.</param>
     /// <returns>A generic <see cref="InProgressResult{T}"/>.</returns>
-    public static InProgressResult<T> InProgress<T>(T value) => new(value);
+    public static Result<T> InProgress<T>(T value) => new InProgressResult<T>(value);
 
     // ───────────────────────────── Fail factories ─────────────────────────────
 
@@ -48,8 +48,8 @@ public abstract partial record Result
     /// </summary>
     /// <param name="message">The error message.</param>
     /// <returns>A non-generic <see cref="FailedResult"/>.</returns>
-    public static FailedResult Failed(string message)
-        => new([ErrorResult.Create(ErrorType.Failure, InternalErrorCode, message)]);
+    public static Result Failed(string message)
+        => new FailedResult([ErrorResult.Create(ErrorType.Failure, InternalErrorCode, message)]);
 
     /// <summary>
     /// Creates a failed generic result using a generic internal server error code
@@ -58,8 +58,8 @@ public abstract partial record Result
     /// <typeparam name="T">The expected type of the value.</typeparam>
     /// <param name="message">The error message.</param>
     /// <returns>A generic <see cref="FailedResult{T}"/>.</returns>
-    public static FailedResult<T> Failed<T>(string message)
-        => new([ErrorResult.Create(ErrorType.Failure, InternalErrorCode, message)]);
+    public static Result<T> Failed<T>(string message)
+        => new FailedResult<T>([ErrorResult.Create(ErrorType.Failure, InternalErrorCode, message)]);
 
     /// <summary>
     /// Creates a failed non-generic result with an explicit error type and code.
@@ -68,8 +68,8 @@ public abstract partial record Result
     /// <param name="code">The error code.</param>
     /// <param name="message">The error message.</param>
     /// <returns>A non-generic <see cref="FailedResult"/>.</returns>
-    public static FailedResult Failed(ErrorType type, string code, string message)
-        => new([ErrorResult.Create(type, code, message)]);
+    public static Result Failed(ErrorType type, string code, string message)
+        => new FailedResult([ErrorResult.Create(type, code, message)]);
 
     /// <summary>
     /// Creates a failed non-generic result with an explicit error type and code.
@@ -79,8 +79,8 @@ public abstract partial record Result
     /// <param name="message">The error message.</param>
     /// <param name="metadata">The error metadata.</param>
     /// <returns>A non-generic <see cref="FailedResult"/>.</returns>
-    public static FailedResult Failed(ErrorType type, string code, string message, Dictionary<string, object?> metadata)
-        => new([ErrorResult.Create(type, code, message, metadata)]);
+    public static Result Failed(ErrorType type, string code, string message, Dictionary<string, object?> metadata)
+        => new FailedResult([ErrorResult.Create(type, code, message, metadata)]);
 
     /// <summary>
     /// Creates a non-generic failed result by configuring a single <see cref="ErrorResult"/>
@@ -112,13 +112,13 @@ public abstract partial record Result
     ///     .AddMetadata("status_code", (int)response.StatusCode));
     /// </code>
     /// </example>
-    public static FailedResult Failed(Func<ErrorResult.ErrorResultBuilder, ErrorResult.ErrorResultBuilder> errorBuilder)
-        => new([errorBuilder(new ErrorResult.ErrorResultBuilder()).Build()]);
+    public static Result Failed(Func<ErrorResult.ErrorResultBuilder, ErrorResult.ErrorResultBuilder> errorBuilder)
+        => new FailedResult([errorBuilder(new ErrorResult.ErrorResultBuilder()).Build()]);
 
     /// <inheritdoc cref="Failed(Func{ErrorResult.ErrorResultBuilder, ErrorResult.ErrorResultBuilder})"/>
-    public static FailedResult<T> Failed<T>(
+    public static Result<T> Failed<T>(
         Func<ErrorResult.ErrorResultBuilder, ErrorResult.ErrorResultBuilder> errorBuilder)
-        => new([errorBuilder(new ErrorResult.ErrorResultBuilder()).Build()]);
+        => new FailedResult<T>([errorBuilder(new ErrorResult.ErrorResultBuilder()).Build()]);
 
     /// <summary>
     /// Creates a failed generic result with an explicit error type and code.
@@ -128,8 +128,8 @@ public abstract partial record Result
     /// <param name="code">The error code.</param>
     /// <param name="message">The error message.</param>
     /// <returns>A generic <see cref="FailedResult{T}"/>.</returns>
-    public static FailedResult<T> Failed<T>(ErrorType type, string code, string message)
-        => new([ErrorResult.Create(type, code, message)]);
+    public static Result<T> Failed<T>(ErrorType type, string code, string message)
+        => new FailedResult<T>([ErrorResult.Create(type, code, message)]);
 
     /// <summary>
     /// Creates a failed generic result with an explicit error type and code.
@@ -140,8 +140,8 @@ public abstract partial record Result
     /// <param name="message">The error message.</param>
     /// <param name="metadata">The error metadata.</param>
     /// <returns>A generic <see cref="FailedResult{T}"/>.</returns>
-    public static FailedResult<T> Failed<T>(ErrorType type, string code, string message, Dictionary<string, object?> metadata)
-        => new([ErrorResult.Create(type, code, message, metadata)]);
+    public static Result<T> Failed<T>(ErrorType type, string code, string message, Dictionary<string, object?> metadata)
+        => new FailedResult<T>([ErrorResult.Create(type, code, message, metadata)]);
 
     /// <summary>
     /// Creates a failed non-generic result using an interpolated string handler
@@ -151,8 +151,8 @@ public abstract partial record Result
     /// <param name="code">The error code.</param>
     /// <param name="message">The interpolated string handler containing the message and metadata.</param>
     /// <returns>A non-generic <see cref="FailedResult"/> with structured error metadata.</returns>
-    public static FailedResult Failed(ErrorType type, string code, ref ResultErrorMessageHandler message)
-        => new([new ErrorResult(type, code, message.GetFormattedText(), message.Metadata)]);
+    public static Result Failed(ErrorType type, string code, ref ResultErrorMessageHandler message)
+        => new FailedResult([new ErrorResult(type, code, message.GetFormattedText(), message.Metadata)]);
 
     /// <summary>
     /// Creates a failed generic result using an interpolated string handler
@@ -163,41 +163,41 @@ public abstract partial record Result
     /// <param name="code">The error code.</param>
     /// <param name="message">The interpolated string handler containing the message and metadata.</param>
     /// <returns>A generic <see cref="FailedResult{T}"/> with structured error metadata.</returns>
-    public static FailedResult<T> Failed<T>(ErrorType type, string code, ref ResultErrorMessageHandler message)
-        => new([new ErrorResult(type, code, message.GetFormattedText(), message.Metadata)]);
+    public static Result<T> Failed<T>(ErrorType type, string code, ref ResultErrorMessageHandler message)
+        => new FailedResult<T>([new ErrorResult(type, code, message.GetFormattedText(), message.Metadata)]);
 
     /// <summary>Creates a failed non-generic result from a single error instance.</summary>
     /// <param name="error">The error result to wrap.</param>
     /// <returns>A non-generic <see cref="FailedResult"/>.</returns>
-    public static FailedResult Failed(ErrorResult error) => new([error]);
+    public static Result Failed(ErrorResult error) => new FailedResult([error]);
 
     /// <summary>Creates a failed non-generic result from a collection of error instances.</summary>
     /// <param name="errors">The collection of errors.</param>
     /// <returns>A non-generic <see cref="FailedResult"/>.</returns>
-    public static FailedResult Failed(IReadOnlyList<ErrorResult> errors) => new(errors);
+    public static Result Failed(IReadOnlyList<ErrorResult> errors) => new FailedResult(errors);
 
     /// <summary>Creates a failed non-generic result from a variable number of error instances.</summary>
     /// <param name="errors">The errors.</param>
     /// <returns>A non-generic <see cref="FailedResult"/>.</returns>
-    public static FailedResult Failed(params ErrorResult[] errors) => new(errors);
+    public static Result Failed(params ErrorResult[] errors) => new FailedResult(errors);
 
     /// <summary>Creates a failed generic result from a single error instance.</summary>
     /// <typeparam name="T">The expected type of the value.</typeparam>
     /// <param name="error">The error result to wrap.</param>
     /// <returns>A generic <see cref="FailedResult{T}"/>.</returns>
-    public static FailedResult<T> Failed<T>(ErrorResult error) => new([error]);
+    public static Result<T> Failed<T>(ErrorResult error) => new FailedResult<T>([error]);
 
     /// <summary>Creates a failed generic result from a collection of error instances.</summary>
     /// <typeparam name="T">The expected type of the value.</typeparam>
     /// <param name="errors">The collection of errors.</param>
     /// <returns>A generic <see cref="FailedResult{T}"/>.</returns>
-    public static FailedResult<T> Failed<T>(IReadOnlyList<ErrorResult> errors) => new(errors);
+    public static Result<T> Failed<T>(IReadOnlyList<ErrorResult> errors) => new FailedResult<T>(errors);
 
     /// <summary>Creates a failed generic result from a variable number of error instances.</summary>
     /// <typeparam name="T">The expected type of the value.</typeparam>
     /// <param name="errors">The errors.</param>
     /// <returns>A generic <see cref="FailedResult{T}"/>.</returns>
-    public static FailedResult<T> Failed<T>(params ErrorResult[] errors) => new(errors);
+    public static Result<T> Failed<T>(params ErrorResult[] errors) => new FailedResult<T>(errors);
 
     // ───────────────────────────── FromException ─────────────────────────────
 
@@ -210,7 +210,7 @@ public abstract partial record Result
     /// <param name="type">The error type to use when the exception is not a cancellation.</param>
     /// <param name="code">Optional explicit error code. Defaults to a system code.</param>
     /// <returns>A non-generic <see cref="FailedResult"/>.</returns>
-    public static FailedResult FromException(Exception exception, ErrorType type = ErrorType.Failure, string? code = null)
+    public static Result FromException(Exception exception, ErrorType type = ErrorType.Failure, string? code = null)
     {
         ArgumentNullException.ThrowIfNull(exception);
 
@@ -235,8 +235,8 @@ public abstract partial record Result
     /// <param name="type">The error type to use when the exception is not a cancellation.</param>
     /// <param name="code">Optional explicit error code.</param>
     /// <returns>A generic <see cref="FailedResult{T}"/>.</returns>
-    public static FailedResult<T> FromException<T>(Exception exception, ErrorType type = ErrorType.Failure, string? code = null)
-        => new(FromException(exception, type, code).Errors);
+    public static Result<T> FromException<T>(Exception exception, ErrorType type = ErrorType.Failure, string? code = null)
+        => new FailedResult<T>(FromException(exception, type, code).GetErrors());
 
 
     // ───────────────────────────── Combine ─────────────────────────────

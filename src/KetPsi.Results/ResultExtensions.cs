@@ -170,7 +170,7 @@ public static class ResultExtensions
     /// <exception cref="InvalidOperationException">
     /// The result is not failed (success or in-progress).
     /// </exception>
-    public static FailedResult AsFailed(this Result result)
+    public static Result AsFailed(this Result result)
     {
         if (result is FailedResult failed)
             return failed;
@@ -188,7 +188,7 @@ public static class ResultExtensions
     /// <exception cref="InvalidOperationException">
     /// The result is not failed (success or in-progress).
     /// </exception>
-    public static FailedResult<T> AsFailed<T>(this Result result)
+    public static Result<T> AsFailed<T>(this Result result)
     {
         if (!result.IsFailed())
             throw new InvalidOperationException(
