@@ -75,6 +75,48 @@ public class ResultRegressionTests
         Assert.Equal(1, count);
     }
 
+    // ───────────────────────────── Failure invariant ─────────────────────────────
+
+    [Fact]
+    public void Failed_WithNoErrors_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => Result.Failed(Array.Empty<ErrorResult>()));
+        Assert.Throws<ArgumentException>(() => Result.Failed<int>(new List<ErrorResult>()));
+    }
+
+    [Fact]
+    public void Failed_CopiesErrorList_SoCallerMutationDoesNotLeak()
+    {
+        var errors = new List<ErrorResult> { ErrorResult.Create(ErrorType.Validation, "a", "A") };
+        var failed = Result.Failed(errors);
+
+        errors.Add(ErrorResult.Create(ErrorType.Validation, "b", "B"));
+
+        Assert.Single(failed.Errors);
+    }
+
+    // ───────────────────────────── with-expressions keep invariants ─────────────────────────────
+
+    [Fact]
+    public void With_EmptyErrors_Throws()
+    {
+        var failed = Result.Failed(ErrorType.Failure, "x", "y");
+
+        Assert.Throws<ArgumentException>(() => failed with { Errors = [] });
+        Assert.Throws<ArgumentException>(() => Result.Failed<int>("boom") with { Errors = [] });
+    }
+
+    [Fact]
+    public void With_Errors_CopiesList()
+    {
+        var replacement = new List<ErrorResult> { ErrorResult.Create(ErrorType.Validation, "a", "A") };
+        var failed = Result.Failed("x") with { Errors = replacement };
+
+        replacement.Clear();
+
+        Assert.Equal("a", Assert.Single(failed.Errors).Code);
+    }
+
     // ───────────────────────────── Misc API ─────────────────────────────
 
     [Fact]

@@ -10,7 +10,7 @@ public abstract partial record Result
     private const string InternalErrorCode = "server.internal_error";
 
     /// <summary>Gets the operational status of the result.</summary>
-    public Status Status { get; init; }
+    public Status Status { get; }
 
     /// <summary>
     /// Gets the errors of a failed result (generic or non-generic), or an empty list otherwise.
@@ -294,10 +294,6 @@ public abstract record Result<T> : Result
     /// <param name="result">The non-generic failed result to convert.</param>
     public static implicit operator Result<T>(FailedResult result) => new FailedResult<T>(result.Errors);
 
-
-
-
-
     /// <summary>
     /// Implicitly converts a raw value into a generic <see cref="SuccessResult{T}"/>.
     /// </summary>
@@ -343,19 +339,26 @@ public record InProgressResult<T> : Result<T>
 /// <typeparam name="T">The type of the underlying value.</typeparam>
 public record FailedResult<T> : Result<T>
 {
-    /// <summary>Gets the collection of errors that caused the failure.</summary>
-    public IReadOnlyList<ErrorResult> Errors { get; init; }
+    private readonly IReadOnlyList<ErrorResult> _errors;
+
+    /// <summary>Gets the collection of errors that caused the failure. Never empty.</summary>
+    /// <exception cref="ArgumentException">Set to an empty list or a list containing <see langword="null"/>.</exception>
+    public IReadOnlyList<ErrorResult> Errors
+    {
+        get => _errors;
+        init => _errors = ErrorList.Freeze(value);
+    }
 
     /// <summary>Gets the first error, or <see langword="null"/> if the list is empty.</summary>
-    public ErrorResult? FirstError => Errors.Count > 0 ? Errors[0] : null;
+    public ErrorResult? FirstError => _errors.Count > 0 ? _errors[0] : null;
 
-    internal override IReadOnlyList<ErrorResult> ErrorsOrEmpty => Errors;
+    internal override IReadOnlyList<ErrorResult> ErrorsOrEmpty => _errors;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FailedResult{T}"/> record.
     /// </summary>
-    /// <param name="errors">The collection of errors.</param>
-    internal FailedResult(IReadOnlyList<ErrorResult> errors) : base(Status.Failed) => Errors = errors;
+    /// <param name="errors">The collection of errors (copied; must contain at least one error).</param>
+    internal FailedResult(IReadOnlyList<ErrorResult> errors) : base(Status.Failed) => _errors = ErrorList.Freeze(errors);
 }
 
 /// <summary>
@@ -385,19 +388,26 @@ public record InProgressResult : Result
 /// </summary>
 public record FailedResult : Result
 {
-    /// <summary>Gets the collection of errors that caused the failure.</summary>
-    public IReadOnlyList<ErrorResult> Errors { get; init; }
+    private readonly IReadOnlyList<ErrorResult> _errors;
+
+    /// <summary>Gets the collection of errors that caused the failure. Never empty.</summary>
+    /// <exception cref="ArgumentException">Set to an empty list or a list containing <see langword="null"/>.</exception>
+    public IReadOnlyList<ErrorResult> Errors
+    {
+        get => _errors;
+        init => _errors = ErrorList.Freeze(value);
+    }
 
     /// <summary>Gets the first error, or <see langword="null"/> if the list is empty.</summary>
-    public ErrorResult? FirstError => Errors.Count > 0 ? Errors[0] : null;
+    public ErrorResult? FirstError => _errors.Count > 0 ? _errors[0] : null;
 
-    internal override IReadOnlyList<ErrorResult> ErrorsOrEmpty => Errors;
+    internal override IReadOnlyList<ErrorResult> ErrorsOrEmpty => _errors;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FailedResult"/> record.
     /// </summary>
-    /// <param name="errors">The collection of errors.</param>
-    internal FailedResult(IReadOnlyList<ErrorResult> errors) : base(Status.Failed) => Errors = errors;
+    /// <param name="errors">The collection of errors (copied; must contain at least one error).</param>
+    internal FailedResult(IReadOnlyList<ErrorResult> errors) : base(Status.Failed) => _errors = ErrorList.Freeze(errors);
 
     /// <summary>
     /// Initializes a new instance from a single error.
