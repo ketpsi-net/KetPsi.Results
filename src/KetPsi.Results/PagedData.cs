@@ -22,6 +22,9 @@ public record PagedData<T>
     /// <summary>Gets a value indicating whether there is a subsequent page of data available.</summary>
     public bool HasNextPage => (long)PageNumber * PageSize < TotalCount;
 
+    /// <summary>Gets the total number of pages (<c>0</c> when there are no items).</summary>
+    public long TotalPages => TotalCount == 0 ? 0 : (TotalCount - 1) / PageSize + 1;
+
     /// <summary>Gets a value indicating whether there is a preceding page of data available.</summary>
     public bool HasPreviousPage => PageNumber > 1;
 

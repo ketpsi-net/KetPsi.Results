@@ -202,6 +202,13 @@ public class ResultRegressionTests
         Assert.True(page.HasNextPage);
     }
 
+    [Fact]
+    public void PagedData_TotalPages()
+    {
+        Assert.Equal(5, PagedData<int>.Create([], 1, 20, 95).TotalPages);
+        Assert.Equal(0, PagedData<int>.Create([], 1, 20, 0).TotalPages);
+    }
+
     [Theory]
     [InlineData(0, 10, 0)]
     [InlineData(1, 0, 0)]
