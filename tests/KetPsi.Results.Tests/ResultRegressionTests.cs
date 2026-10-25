@@ -253,5 +253,67 @@ public class ResultRegressionTests
             () => PagedData<int>.Create([], pageNumber, pageSize, totalCount));
     }
 
+    // ───────────────────────────── JSON: concrete types ─────────────────────────────
+
+    [Fact]
+    public void Serialize_ConcreteGenericTypes()
+    {
+        var options = CreateOptions();
+
+        Assert.Equal("{\"status\":\"Success\",\"value\":5}",
+            JsonSerializer.Serialize(Result.Success(5), options));
+        Assert.Equal("{\"status\":\"InProgress\",\"value\":\"job\"}",
+            JsonSerializer.Serialize(Result.InProgress("job"), options));
+        Assert.Contains("\"status\":\"Failed\"",
+            JsonSerializer.Serialize(Result.Failed<int>("boom"), options));
+    }
+
+    [Fact]
+    public void Serialize_ConcreteNonGenericTypes()
+    {
+        var options = CreateOptions();
+
+        Assert.Equal("{\"status\":\"Success\"}", JsonSerializer.Serialize(Result.Success(), options));
+        Assert.Contains("\"code\":\"resource.not_found\"",
+            JsonSerializer.Serialize(Result.Resource.NotFound(), options));
+    }
+
+    [Fact]
+    public void Deserialize_ConcreteTypes()
+    {
+        var options = CreateOptions();
+
+        var success = JsonSerializer.Deserialize<SuccessResult<int>>("{\"status\":\"Success\",\"value\":3}", options);
+        Assert.Equal(3, success!.Value);
+
+        var failed = JsonSerializer.Deserialize<FailedResult>(
+            "{\"status\":\"Failed\",\"errors\":[{\"type\":\"NotFound\",\"code\":\"x\",\"message\":\"m\"}]}", options);
+        Assert.Equal("x", failed!.FirstError!.Code);
+    }
+
+    [Fact]
+    public void Deserialize_ConcreteType_WithMismatchedStatus_Throws()
+    {
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<SuccessResult<int>>("{\"status\":\"InProgress\",\"value\":3}", CreateOptions()));
+    }
+
+    [Fact]
+    public void Deserialize_FailedWithoutErrors_Throws()
+    {
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<Result>("{\"status\":\"Failed\"}", CreateOptions()));
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<Result<int>>("{\"status\":\"Failed\",\"errors\":[]}", CreateOptions()));
+    }
+
+    [Fact]
+    public void Serialize_ResultAsPropertyOfDto()
+    {
+        var json = JsonSerializer.Serialize(new Envelope(Result.Success(1)), CreateOptions());
+        Assert.Equal("{\"inner\":{\"status\":\"Success\",\"value\":1}}", json);
+    }
+
+    private sealed record Envelope(Result<int> Inner);
 }
 
