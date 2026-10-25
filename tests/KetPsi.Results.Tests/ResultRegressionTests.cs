@@ -95,6 +95,40 @@ public class ResultRegressionTests
         Assert.Single(failed.Errors);
     }
 
+    // ───────────────────────────── Equality ─────────────────────────────
+
+    [Fact]
+    public void FailedResults_WithSameErrors_AreEqual()
+    {
+        var a = Result.Failed(ErrorType.NotFound, "x", "missing");
+        var b = Result.Failed(ErrorType.NotFound, "x", "missing");
+
+        Assert.Equal(a, b);
+        Assert.Equal(a.GetHashCode(), b.GetHashCode());
+        Assert.NotEqual(a, Result.Failed(ErrorType.NotFound, "y", "missing"));
+    }
+
+    [Fact]
+    public void GenericFailedResults_WithSameErrors_AreEqual()
+    {
+        var a = Result.Failed<int>(ErrorType.NotFound, "x", "missing");
+        var b = Result.Failed<int>(ErrorType.NotFound, "x", "missing");
+
+        Assert.Equal(a, b);
+        Assert.Equal(a.GetHashCode(), b.GetHashCode());
+    }
+
+    [Fact]
+    public void ErrorResults_FromInterpolatedMessages_AreEqual()
+    {
+        int id = 5;
+        var a = Result.Resource.NotFound($"Order {id:@orderId} missing");
+        var b = Result.Resource.NotFound($"Order {id:@orderId} missing");
+
+        Assert.Equal(a, b);
+        Assert.Equal(a.FirstError, b.FirstError);
+    }
+
     // ───────────────────────────── with-expressions keep invariants ─────────────────────────────
 
     [Fact]

@@ -64,6 +64,44 @@ public record ErrorResult
     public static ErrorResult Create(ErrorType type, string code, string message, IReadOnlyDictionary<string, object?>? metadata)
         => new(type, code, message, metadata);
 
+    /// <summary>
+    /// Value equality over type, code, message and metadata entries
+    /// (metadata values are compared with <see cref="object.Equals(object, object)"/>).
+    /// </summary>
+    public virtual bool Equals(ErrorResult? other)
+    {
+        if (ReferenceEquals(this, other)) return true;
+        if (other is null || EqualityContract != other.EqualityContract) return false;
+
+        return Type == other.Type
+               && string.Equals(Code, other.Code, StringComparison.Ordinal)
+               && string.Equals(Message, other.Message, StringComparison.Ordinal)
+               && MetadataEquals(Metadata, other.Metadata);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        // Metadata is excluded: equal errors must hash equally, and order-independent
+        // hashing of arbitrary values is not worth the cost here.
+        return HashCode.Combine(Type, Code, Message, Metadata?.Count ?? 0);
+    }
+
+    private static bool MetadataEquals(IReadOnlyDictionary<string, object?>? left, IReadOnlyDictionary<string, object?>? right)
+    {
+        if (ReferenceEquals(left, right)) return true;
+        if ((left?.Count ?? 0) != (right?.Count ?? 0)) return false;
+        if (left is null || right is null) return true; // both empty
+
+        foreach (var (key, value) in left)
+        {
+            if (!right.TryGetValue(key, out var otherValue) || !Equals(value, otherValue))
+                return false;
+        }
+
+        return true;
+    }
+
     /// <inheritdoc />
     public override string ToString() => $"{Code}: {Message}";
 

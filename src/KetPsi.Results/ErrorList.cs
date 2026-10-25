@@ -30,5 +30,25 @@ internal static class ErrorList
         return new Frozen(copy);
     }
 
+    public static bool SequenceEqual(IReadOnlyList<ErrorResult> left, IReadOnlyList<ErrorResult> right)
+    {
+        if (ReferenceEquals(left, right)) return true;
+        if (left.Count != right.Count) return false;
+
+        for (var i = 0; i < left.Count; i++)
+            if (!left[i].Equals(right[i]))
+                return false;
+
+        return true;
+    }
+
+    public static int GetHashCode(IReadOnlyList<ErrorResult> errors)
+    {
+        var hash = new HashCode();
+        foreach (var error in errors)
+            hash.Add(error);
+        return hash.ToHashCode();
+    }
+
     private sealed class Frozen(IList<ErrorResult> items) : ReadOnlyCollection<ErrorResult>(items);
 }

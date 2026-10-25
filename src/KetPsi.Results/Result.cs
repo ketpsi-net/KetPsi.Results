@@ -359,6 +359,13 @@ public record FailedResult<T> : Result<T>
     /// </summary>
     /// <param name="errors">The collection of errors (copied; must contain at least one error).</param>
     internal FailedResult(IReadOnlyList<ErrorResult> errors) : base(Status.Failed) => _errors = ErrorList.Freeze(errors);
+
+    /// <inheritdoc />
+    public virtual bool Equals(FailedResult<T>? other)
+        => base.Equals(other) && ErrorList.SequenceEqual(_errors, other!._errors);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), ErrorList.GetHashCode(_errors));
 }
 
 /// <summary>
@@ -427,4 +434,10 @@ public record FailedResult : Result
     internal FailedResult(ErrorType type, string code, string message, IReadOnlyDictionary<string, object?>? metadata)
         : this(ErrorResult.Create(type, code, message, metadata)) { }
 
+    /// <inheritdoc />
+    public virtual bool Equals(FailedResult? other)
+        => base.Equals(other) && ErrorList.SequenceEqual(_errors, other!._errors);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), ErrorList.GetHashCode(_errors));
 }
