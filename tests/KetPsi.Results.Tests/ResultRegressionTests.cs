@@ -193,5 +193,24 @@ public class ResultRegressionTests
         Assert.Null(failed.FirstError!.Metadata);
     }
 
+    // ───────────────────────────── PagedData ─────────────────────────────
+
+    [Fact]
+    public void PagedData_HasNextPage_DoesNotOverflow()
+    {
+        var page = PagedData<int>.Create([], pageNumber: 50_000, pageSize: 50_000, totalCount: long.MaxValue);
+        Assert.True(page.HasNextPage);
+    }
+
+    [Theory]
+    [InlineData(0, 10, 0)]
+    [InlineData(1, 0, 0)]
+    [InlineData(1, 10, -1)]
+    public void PagedData_InvalidArguments_Throw(int pageNumber, int pageSize, long totalCount)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => PagedData<int>.Create([], pageNumber, pageSize, totalCount));
+    }
+
 }
 

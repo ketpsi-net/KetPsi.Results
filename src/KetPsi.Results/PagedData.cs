@@ -20,7 +20,7 @@ public record PagedData<T>
     public long TotalCount { get; init; }
 
     /// <summary>Gets a value indicating whether there is a subsequent page of data available.</summary>
-    public bool HasNextPage => PageNumber * PageSize < TotalCount;
+    public bool HasNextPage => (long)PageNumber * PageSize < TotalCount;
 
     /// <summary>Gets a value indicating whether there is a preceding page of data available.</summary>
     public bool HasPreviousPage => PageNumber > 1;
@@ -44,6 +44,17 @@ public record PagedData<T>
     /// <param name="pageSize">The maximum number of items requested per page.</param>
     /// <param name="totalCount">The total number of items available across all pages.</param>
     /// <returns>A newly created <see cref="PagedData{T}"/>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="items"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="pageNumber"/> or <paramref name="pageSize"/> is less than 1, or <paramref name="totalCount"/> is negative.
+    /// </exception>
     public static PagedData<T> Create(IReadOnlyList<T> items, int pageNumber, int pageSize, long totalCount)
-        => new(items, pageNumber, pageSize, totalCount);
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+        ArgumentOutOfRangeException.ThrowIfNegative(totalCount);
+
+        return new(items, pageNumber, pageSize, totalCount);
+    }
 }
