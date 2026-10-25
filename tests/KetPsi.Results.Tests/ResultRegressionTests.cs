@@ -205,6 +205,16 @@ public class ResultRegressionTests
         Assert.Equal("12", failed.FirstError.Metadata!["pin"]);
     }
 
+    [Fact]
+    public void Alignment_IsSupported()
+    {
+        int id = 7;
+        var failed = Result.Resource.NotFound($"[{id,4}] [{id,-4:D2}]");
+
+        Assert.Equal("[   7] [07  ]", failed.FirstError!.Message);
+        Assert.Equal(7, failed.FirstError.Metadata!["id"]);
+    }
+
     // ───────────────────────────── PagedData ─────────────────────────────
 
     [Fact]

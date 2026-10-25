@@ -80,6 +80,38 @@ public ref struct ResultErrorMessageHandler
             return;
         }
 
+        _builder.AppendLiteral(Render(value, format, expression));
+    }
+
+    /// <summary>
+    /// Appends a value padded to <paramref name="alignment"/> (positive = right-aligned,
+    /// negative = left-aligned), e.g. <c>{id,8}</c> or <c>{id,-8:@key:mask}</c>.
+    /// Directives are applied before padding; the raw value is always stored in metadata.
+    /// </summary>
+    public void AppendFormatted<T>(
+        T value,
+        int alignment,
+        string? format = null,
+        [CallerArgumentExpression(nameof(value))] string expression = "")
+    {
+        if (string.IsNullOrEmpty(format))
+        {
+            Store(expression, value);
+            _builder.AppendFormatted(value, alignment);
+            return;
+        }
+
+        _builder.AppendFormatted(Render(value, format, expression), alignment);
+    }
+
+    /// <summary>Returns the finished message and resets the builder.</summary>
+    public string GetFormattedText() => _builder.ToStringAndClear();
+
+    // ───────────────────────────── private helpers ─────────────────────────────
+
+    /// <summary>Stores the raw value in metadata and returns its display text after all directives.</summary>
+    private string Render<T>(T value, string format, string expression)
+    {
         Parse(format.AsSpan(),
             out var keyOverride,
             out var standardFormat,
@@ -97,13 +129,8 @@ public ref struct ResultErrorMessageHandler
         if (maskRange.HasValue)
             display = ApplyMask(display, maskRange.Value);
 
-        _builder.AppendLiteral(display);
+        return display;
     }
-
-    /// <summary>Returns the finished message and resets the builder.</summary>
-    public string GetFormattedText() => _builder.ToStringAndClear();
-
-    // ───────────────────────────── private helpers ─────────────────────────────
 
     private void Store(string key, object? value)
     {
