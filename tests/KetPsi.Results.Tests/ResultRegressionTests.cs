@@ -161,6 +161,18 @@ public class ResultRegressionTests
     }
 
     [Fact]
+    public void ToProblemDetails_Generic()
+    {
+        var failed = Result.Failed<int>(ErrorType.NotFound, "res.missing", "missing");
+
+        var pd = failed.ToProblemDetails("/x");
+
+        Assert.Equal(404, pd["status"]);
+        Assert.Equal("res.missing", pd["type"]);
+        Assert.Equal("/x", pd["instance"]);
+    }
+
+    [Fact]
     public void Combine_WithNullElement_Throws()
     {
         Assert.Throws<ArgumentException>(() => Result.Combine(Result.Success(), null!));

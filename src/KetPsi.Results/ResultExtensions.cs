@@ -147,17 +147,26 @@ public static class ResultExtensions
     /// Builds a dictionary suitable for ProblemDetails / RFC 7807 responses.
     /// </summary>
     public static Dictionary<string, object?> ToProblemDetails(this FailedResult result, string? instance = null)
+        => BuildProblemDetails(result.Errors, instance);
+
+    /// <summary>
+    /// Builds a dictionary suitable for ProblemDetails / RFC 7807 responses.
+    /// </summary>
+    public static Dictionary<string, object?> ToProblemDetails<T>(this FailedResult<T> result, string? instance = null)
+        => BuildProblemDetails(result.Errors, instance);
+
+    private static Dictionary<string, object?> BuildProblemDetails(IReadOnlyList<ErrorResult> errors, string? instance)
     {
-        var first = result.FirstError;
+        var first = errors.Count > 0 ? errors[0] : null;
 
         return new Dictionary<string, object?>
         {
             ["type"] = first?.Code ?? "about:blank",
             ["title"] = first?.Type.ToString() ?? "Error",
-            ["status"] = result.ToStatusCode(),
+            ["status"] = first?.Type.ToStatusCode() ?? 500,
             ["detail"] = first?.Message,
             ["instance"] = instance,
-            ["errors"] = result.Errors.Select(e => new
+            ["errors"] = errors.Select(e => new
             {
                 e.Code,
                 e.Message,
