@@ -488,6 +488,9 @@ public class ResultBasicTests
     {
         var meta = new Dictionary<string, object?> { ["k"] = 1 };
         var e = ErrorResult.Create(ErrorType.Validation, "c", "m", meta);
-        Assert.Same(meta, e.Metadata);
+        Assert.Equal(meta, e.Metadata);
+
+        meta["k"] = 2;
+        Assert.Equal(1, e.Metadata!["k"]);
     }
 }

@@ -5,7 +5,7 @@
 		<Authors>KetPsi</Authors>
 		<PackageId>$(AssemblyName)</PackageId>
         <PackageProjectUrl>https://github.com/ketpsi-net/KetPsi.Results</PackageProjectUrl>
-        <PackageReadmeFile>README.MD</PackageReadmeFile>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
         <RepositoryUrl>https://github.com/ketpsi-net/KetPsi.Results</RepositoryUrl>
         <PackageIcon>icon.png</PackageIcon>
         <Icon>icon.png</Icon>
@@ -13,7 +13,7 @@
 		<PackageLicenseFile>LICENSE</PackageLicenseFile>
     </PropertyGroup>
     <ItemGroup>
-         <None Include="../../README.MD">
+         <None Include="../../README.md">
             <Pack>True</Pack>
             <PackagePath>\</PackagePath>
         </None>
