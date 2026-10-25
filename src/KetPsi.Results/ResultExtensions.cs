@@ -26,7 +26,12 @@ public static class ResultExtensions
     /// <summary>
     /// Tries to extract the value when the result is successful or in-progress.
     /// </summary>
-    public static bool TryGetResult<T>(this Result<T> result, [NotNullWhen(true)] out T? value)
+    /// <remarks>
+    /// Returns <see langword="true"/> for <c>Result.Success&lt;string?&gt;(null)</c> with a
+    /// <see langword="null"/> value: a successful outcome may legitimately carry <see langword="null"/>
+    /// when <typeparamref name="T"/> is nullable.
+    /// </remarks>
+    public static bool TryGetResult<T>(this Result<T> result, [MaybeNullWhen(false)] out T value)
     {
         if (result is SuccessResult<T> success)
         {
@@ -45,20 +50,18 @@ public static class ResultExtensions
     }
 
     /// <summary>Returns the error list, or an empty list when the result is not failed.</summary>
-    public static IReadOnlyList<ErrorResult> GetErrors(this Result result)
-        => result is FailedResult failed ? failed.Errors : [];
+    public static IReadOnlyList<ErrorResult> GetErrors(this Result result) => result.ErrorsOrEmpty;
 
     /// <summary>Returns the error list, or an empty list when the result is not failed.</summary>
-    public static IReadOnlyList<ErrorResult> GetErrors<T>(this Result<T> result)
-        => result is FailedResult<T> failed ? failed.Errors : [];
+    public static IReadOnlyList<ErrorResult> GetErrors<T>(this Result<T> result) => result.ErrorsOrEmpty;
 
     /// <summary>Returns the first error, or <see langword="null"/> when the result is not failed.</summary>
     public static ErrorResult? FirstError(this Result result)
-        => result is FailedResult { Errors.Count: > 0 } f ? f.Errors[0] : null;
+        => result.ErrorsOrEmpty is { Count: > 0 } errors ? errors[0] : null;
 
     /// <summary>Returns the first error, or <see langword="null"/> when the result is not failed.</summary>
     public static ErrorResult? FirstError<T>(this Result<T> result)
-        => result is FailedResult<T> { Errors.Count: > 0 } f ? f.Errors[0] : null;
+        => result.ErrorsOrEmpty is { Count: > 0 } errors ? errors[0] : null;
 
     /// <summary>Formats all errors as a multi-line string ("code:message").</summary>
     public static string GetErrorAsString(this Result result) => FormatErrors(result.GetErrors());
@@ -144,17 +147,26 @@ public static class ResultExtensions
     /// Builds a dictionary suitable for ProblemDetails / RFC 7807 responses.
     /// </summary>
     public static Dictionary<string, object?> ToProblemDetails(this FailedResult result, string? instance = null)
+        => BuildProblemDetails(result.Errors, instance);
+
+    /// <summary>
+    /// Builds a dictionary suitable for ProblemDetails / RFC 7807 responses.
+    /// </summary>
+    public static Dictionary<string, object?> ToProblemDetails<T>(this FailedResult<T> result, string? instance = null)
+        => BuildProblemDetails(result.Errors, instance);
+
+    private static Dictionary<string, object?> BuildProblemDetails(IReadOnlyList<ErrorResult> errors, string? instance)
     {
-        var first = result.FirstError;
+        var first = errors.Count > 0 ? errors[0] : null;
 
         return new Dictionary<string, object?>
         {
             ["type"] = first?.Code ?? "about:blank",
             ["title"] = first?.Type.ToString() ?? "Error",
-            ["status"] = result.ToStatusCode(),
+            ["status"] = first?.Type.ToStatusCode() ?? 500,
             ["detail"] = first?.Message,
             ["instance"] = instance,
-            ["errors"] = result.Errors.Select(e => new
+            ["errors"] = errors.Select(e => new
             {
                 e.Code,
                 e.Message,
@@ -179,7 +191,7 @@ public static class ResultExtensions
             throw new InvalidOperationException(
                 $"AsFailed() requires a failed result; status was {result.Status}.");
 
-        return Result.Failed(result.GetErrors());
+        return Result.Failed(result.ErrorsOrEmpty);
     }
 
     /// <summary>
@@ -190,10 +202,13 @@ public static class ResultExtensions
     /// </exception>
     public static FailedResult<T> AsFailed<T>(this Result result)
     {
+        if (result is FailedResult<T> failed)
+            return failed;
+
         if (!result.IsFailed())
             throw new InvalidOperationException(
                 $"AsFailed() requires a failed result; status was {result.Status}.");
 
-        return Result.Failed<T>(result.GetErrors());
+        return Result.Failed<T>(result.ErrorsOrEmpty);
     }
 }

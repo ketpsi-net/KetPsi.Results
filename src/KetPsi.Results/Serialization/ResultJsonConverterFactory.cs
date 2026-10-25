@@ -45,16 +45,46 @@ public sealed class ResultJsonConverterFactory : JsonConverterFactory
         if (typeToConvert == typeof(ErrorResult))
             return new ErrorResultJsonConverter();
 
-        if (typeToConvert == typeof(Result)
-            || typeToConvert == typeof(SuccessResult)
-            || typeToConvert == typeof(InProgressResult)
-            || typeToConvert == typeof(FailedResult))
+        if (typeToConvert == typeof(Result))
             return new ResultJsonConverter();
 
+        if (typeToConvert == typeof(SuccessResult)
+            || typeToConvert == typeof(InProgressResult)
+            || typeToConvert == typeof(FailedResult))
+            return CreateConcrete(typeToConvert, typeof(Result), new ResultJsonConverter());
+
         var t = typeToConvert.GetGenericArguments()[0];
-        var converterType = typeof(ResultOfTJsonConverter<>).MakeGenericType(t);
-        return (JsonConverter)Activator.CreateInstance(converterType)!;
+        var baseType = typeof(Result<>).MakeGenericType(t);
+        var inner = (JsonConverter)Activator.CreateInstance(typeof(ResultOfTJsonConverter<>).MakeGenericType(t))!;
+
+        return typeToConvert == baseType ? inner : CreateConcrete(typeToConvert, baseType, inner);
     }
+
+    private static JsonConverter CreateConcrete(Type concreteType, Type baseType, JsonConverter inner)
+    {
+        var converterType = typeof(ConcreteResultJsonConverter<,>).MakeGenericType(concreteType, baseType);
+        return (JsonConverter)Activator.CreateInstance(converterType, inner)!;
+    }
+}
+
+/// <summary>
+/// Serializes a concrete result type (e.g. <see cref="SuccessResult{T}"/>) with the converter of its base
+/// result type, and on read rejects JSON whose <c>status</c> does not match the requested type.
+/// </summary>
+internal sealed class ConcreteResultJsonConverter<TConcrete, TBase>(JsonConverter<TBase> inner) : JsonConverter<TConcrete>
+    where TConcrete : TBase
+{
+    public override TConcrete Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        var result = inner.Read(ref reader, typeof(TBase), options);
+        return result is TConcrete concrete
+            ? concrete
+            : throw new JsonException(
+                $"Cannot deserialize {result?.GetType().Name ?? "null"} as {typeof(TConcrete).Name}; the JSON status does not match.");
+    }
+
+    public override void Write(Utf8JsonWriter writer, TConcrete value, JsonSerializerOptions options)
+        => inner.Write(writer, value, options);
 }
 
 /// <summary>
@@ -217,7 +247,7 @@ public sealed class ResultJsonConverter : JsonConverter<Result>
         {
             Status.Success => Result.Success(),
             Status.InProgress => Result.InProgress(),
-            Status.Failed => Result.Failed(errors ?? []),
+            Status.Failed => Result.Failed(RequireErrors(errors)),
             _ => throw new JsonException("Result JSON requires a 'status' property.")
         };
     }
@@ -244,6 +274,11 @@ public sealed class ResultJsonConverter : JsonConverter<Result>
         return string.Equals(name, expectedName, StringComparison.Ordinal)
                || string.Equals(name, expected, StringComparison.OrdinalIgnoreCase);
     }
+
+    internal static List<ErrorResult> RequireErrors(List<ErrorResult>? errors)
+        => errors is { Count: > 0 }
+            ? errors
+            : throw new JsonException("Failed Result JSON requires a non-empty 'errors' array.");
 
     internal static Status ReadStatus(ref Utf8JsonReader reader)
     {
@@ -301,15 +336,6 @@ public sealed class ResultJsonConverter : JsonConverter<Result>
             JsonSerializer.Serialize(writer, error, options);
         writer.WriteEndArray();
     }
-
-    internal static JsonTypeInfo<T>? GetTypeInfo<T>(JsonSerializerOptions options)
-    {
-        if (options.TypeInfoResolver is null)
-            return null;
-
-        var info = options.TypeInfoResolver.GetTypeInfo(typeof(T), options);
-        return info as JsonTypeInfo<T>;
-    }
 }
 
 /// <summary>
@@ -360,7 +386,7 @@ public sealed class ResultOfTJsonConverter<T> : JsonConverter<Result<T>>
             Status.InProgress => hasValue
                 ? Result.InProgress(value!)
                 : throw new JsonException("In-progress Result<T> requires a 'value' property."),
-            Status.Failed => Result.Failed<T>(errors ?? []),
+            Status.Failed => Result.Failed<T>(ResultJsonConverter.RequireErrors(errors)),
             _ => throw new JsonException("Result<T> JSON requires a 'status' property.")
         };
     }
@@ -392,10 +418,8 @@ public sealed class ResultOfTJsonConverter<T> : JsonConverter<Result<T>>
         if (reader.TokenType == JsonTokenType.Null)
             return default;
 
-        var typeInfo = ResultJsonConverter.GetTypeInfo<T>(options);
-        if (typeInfo is not null)
-            return JsonSerializer.Deserialize(ref reader, typeInfo);
-
+        // Resolves (and caches) JsonTypeInfo through options.TypeInfoResolver, so source-generated
+        // contexts are honored without building a fresh, unconfigured JsonTypeInfo on every call.
         return JsonSerializer.Deserialize<T>(ref reader, options);
     }
 
@@ -404,10 +428,6 @@ public sealed class ResultOfTJsonConverter<T> : JsonConverter<Result<T>>
         var name = options.PropertyNamingPolicy?.ConvertName("value") ?? "value";
         writer.WritePropertyName(name);
 
-        var typeInfo = ResultJsonConverter.GetTypeInfo<T>(options);
-        if (typeInfo is not null)
-            JsonSerializer.Serialize(writer, value, typeInfo);
-        else
-            JsonSerializer.Serialize(writer, value, options);
+        JsonSerializer.Serialize(writer, value, options);
     }
 }

@@ -10,7 +10,13 @@ public abstract partial record Result
     private const string InternalErrorCode = "server.internal_error";
 
     /// <summary>Gets the operational status of the result.</summary>
-    public Status Status { get; init; }
+    public Status Status { get; }
+
+    /// <summary>
+    /// Gets the errors of a failed result (generic or non-generic), or an empty list otherwise.
+    /// Lets base-typed helpers see the errors of <see cref="FailedResult{T}"/> without knowing <c>T</c>.
+    /// </summary>
+    internal virtual IReadOnlyList<ErrorResult> ErrorsOrEmpty => [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Result"/> class.
@@ -256,10 +262,13 @@ public abstract partial record Result
 
         foreach (var result in results)
         {
-            if (result is FailedResult failed)
+            if (result is null)
+                throw new ArgumentException("Results cannot contain null.", nameof(results));
+
+            if (result.Status == Status.Failed)
             {
                 errors ??= new List<ErrorResult>();
-                errors.AddRange(failed.Errors);
+                errors.AddRange(result.ErrorsOrEmpty);
             }
         }
 
@@ -284,10 +293,6 @@ public abstract record Result<T> : Result
     /// </summary>
     /// <param name="result">The non-generic failed result to convert.</param>
     public static implicit operator Result<T>(FailedResult result) => new FailedResult<T>(result.Errors);
-
-
-
-
 
     /// <summary>
     /// Implicitly converts a raw value into a generic <see cref="SuccessResult{T}"/>.
@@ -334,17 +339,33 @@ public record InProgressResult<T> : Result<T>
 /// <typeparam name="T">The type of the underlying value.</typeparam>
 public record FailedResult<T> : Result<T>
 {
-    /// <summary>Gets the collection of errors that caused the failure.</summary>
-    public IReadOnlyList<ErrorResult> Errors { get; init; }
+    private readonly IReadOnlyList<ErrorResult> _errors;
+
+    /// <summary>Gets the collection of errors that caused the failure. Never empty.</summary>
+    /// <exception cref="ArgumentException">Set to an empty list or a list containing <see langword="null"/>.</exception>
+    public IReadOnlyList<ErrorResult> Errors
+    {
+        get => _errors;
+        init => _errors = ErrorList.Freeze(value);
+    }
 
     /// <summary>Gets the first error, or <see langword="null"/> if the list is empty.</summary>
-    public ErrorResult? FirstError => Errors.Count > 0 ? Errors[0] : null;
+    public ErrorResult? FirstError => _errors.Count > 0 ? _errors[0] : null;
+
+    internal override IReadOnlyList<ErrorResult> ErrorsOrEmpty => _errors;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FailedResult{T}"/> record.
     /// </summary>
-    /// <param name="errors">The collection of errors.</param>
-    internal FailedResult(IReadOnlyList<ErrorResult> errors) : base(Status.Failed) => Errors = errors;
+    /// <param name="errors">The collection of errors (copied; must contain at least one error).</param>
+    internal FailedResult(IReadOnlyList<ErrorResult> errors) : base(Status.Failed) => _errors = ErrorList.Freeze(errors);
+
+    /// <inheritdoc />
+    public virtual bool Equals(FailedResult<T>? other)
+        => base.Equals(other) && ErrorList.SequenceEqual(_errors, other!._errors);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), ErrorList.GetHashCode(_errors));
 }
 
 /// <summary>
@@ -374,17 +395,26 @@ public record InProgressResult : Result
 /// </summary>
 public record FailedResult : Result
 {
-    /// <summary>Gets the collection of errors that caused the failure.</summary>
-    public IReadOnlyList<ErrorResult> Errors { get; init; }
+    private readonly IReadOnlyList<ErrorResult> _errors;
+
+    /// <summary>Gets the collection of errors that caused the failure. Never empty.</summary>
+    /// <exception cref="ArgumentException">Set to an empty list or a list containing <see langword="null"/>.</exception>
+    public IReadOnlyList<ErrorResult> Errors
+    {
+        get => _errors;
+        init => _errors = ErrorList.Freeze(value);
+    }
 
     /// <summary>Gets the first error, or <see langword="null"/> if the list is empty.</summary>
-    public ErrorResult? FirstError => Errors.Count > 0 ? Errors[0] : null;
+    public ErrorResult? FirstError => _errors.Count > 0 ? _errors[0] : null;
+
+    internal override IReadOnlyList<ErrorResult> ErrorsOrEmpty => _errors;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FailedResult"/> record.
     /// </summary>
-    /// <param name="errors">The collection of errors.</param>
-    internal FailedResult(IReadOnlyList<ErrorResult> errors) : base(Status.Failed) => Errors = errors;
+    /// <param name="errors">The collection of errors (copied; must contain at least one error).</param>
+    internal FailedResult(IReadOnlyList<ErrorResult> errors) : base(Status.Failed) => _errors = ErrorList.Freeze(errors);
 
     /// <summary>
     /// Initializes a new instance from a single error.
@@ -402,6 +432,12 @@ public record FailedResult : Result
     /// Initializes a new instance from type, code, message and metadata.
     /// </summary>
     internal FailedResult(ErrorType type, string code, string message, IReadOnlyDictionary<string, object?>? metadata)
-        : this(ErrorResult.Create(type, code, message, metadata)) { }
+        : this(new ErrorResult(type, code, message, metadata)) { }
 
+    /// <inheritdoc />
+    public virtual bool Equals(FailedResult? other)
+        => base.Equals(other) && ErrorList.SequenceEqual(_errors, other!._errors);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), ErrorList.GetHashCode(_errors));
 }

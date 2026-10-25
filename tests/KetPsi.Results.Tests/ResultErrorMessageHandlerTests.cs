@@ -126,11 +126,11 @@ public class ResultErrorMessageHandlerTests
     }
 
     [Fact]
-    public void Mask_Full_OnShortString_CapsToLength()
+    public void Mask_Full_OnShortString_IsFixedWidth()
     {
         string pin = "12";
         var result = Fail($"PIN {pin:mask}");
-        Assert.Equal("PIN **", result.FirstError()!.Message);
+        Assert.Equal("PIN ***", result.FirstError()!.Message);
     }
 
     [Fact]
