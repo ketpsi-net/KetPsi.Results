@@ -306,8 +306,9 @@ public ref struct ResultErrorMessageHandler
 
         int len = input.Length;
 
+        // Fixed width so the mask never reveals the length of short secrets.
         if (range.Full)
-            return new string('*', Math.Min(len, 3));
+            return "***";
 
         int start = range.Start ?? 0;
         int end = range.End ?? len;

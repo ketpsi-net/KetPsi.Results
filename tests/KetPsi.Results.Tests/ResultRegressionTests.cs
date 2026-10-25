@@ -193,6 +193,18 @@ public class ResultRegressionTests
         Assert.Null(failed.FirstError!.Metadata);
     }
 
+    // ───────────────────────────── Message handler ─────────────────────────────
+
+    [Fact]
+    public void FullMask_DoesNotLeakLengthOfShortValues()
+    {
+        string pin = "12";
+        var failed = Result.Validation.InvalidInput($"pin {pin:mask}");
+
+        Assert.Equal("pin ***", failed.FirstError!.Message);
+        Assert.Equal("12", failed.FirstError.Metadata!["pin"]);
+    }
+
     // ───────────────────────────── PagedData ─────────────────────────────
 
     [Fact]
