@@ -336,15 +336,6 @@ public sealed class ResultJsonConverter : JsonConverter<Result>
             JsonSerializer.Serialize(writer, error, options);
         writer.WriteEndArray();
     }
-
-    internal static JsonTypeInfo<T>? GetTypeInfo<T>(JsonSerializerOptions options)
-    {
-        if (options.TypeInfoResolver is null)
-            return null;
-
-        var info = options.TypeInfoResolver.GetTypeInfo(typeof(T), options);
-        return info as JsonTypeInfo<T>;
-    }
 }
 
 /// <summary>
@@ -427,10 +418,8 @@ public sealed class ResultOfTJsonConverter<T> : JsonConverter<Result<T>>
         if (reader.TokenType == JsonTokenType.Null)
             return default;
 
-        var typeInfo = ResultJsonConverter.GetTypeInfo<T>(options);
-        if (typeInfo is not null)
-            return JsonSerializer.Deserialize(ref reader, typeInfo);
-
+        // Resolves (and caches) JsonTypeInfo through options.TypeInfoResolver, so source-generated
+        // contexts are honored without building a fresh, unconfigured JsonTypeInfo on every call.
         return JsonSerializer.Deserialize<T>(ref reader, options);
     }
 
@@ -439,10 +428,6 @@ public sealed class ResultOfTJsonConverter<T> : JsonConverter<Result<T>>
         var name = options.PropertyNamingPolicy?.ConvertName("value") ?? "value";
         writer.WritePropertyName(name);
 
-        var typeInfo = ResultJsonConverter.GetTypeInfo<T>(options);
-        if (typeInfo is not null)
-            JsonSerializer.Serialize(writer, value, typeInfo);
-        else
-            JsonSerializer.Serialize(writer, value, options);
+        JsonSerializer.Serialize(writer, value, options);
     }
 }

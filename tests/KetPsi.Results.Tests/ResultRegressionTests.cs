@@ -317,3 +317,31 @@ public class ResultRegressionTests
     private sealed record Envelope(Result<int> Inner);
 }
 
+public partial class ResultSourceGenerationTests
+{
+    [Fact]
+    public void RoundTrip_WithSourceGeneratedContext()
+    {
+        var options = new JsonSerializerOptions(SourceGenContext.Default.Options).AddKetPsiResultConverters();
+        Result<SourceGenDto> result = new SourceGenDto { Id = 7, Name = "seven" };
+
+        var json = JsonSerializer.Serialize(result, options);
+        Assert.Equal("{\"status\":\"Success\",\"value\":{\"id\":7,\"name\":\"seven\"}}", json);
+
+        var restored = JsonSerializer.Deserialize<Result<SourceGenDto>>(json, options);
+        Assert.True(restored!.TryGetResult(out var dto));
+        Assert.Equal(7, dto.Id);
+        Assert.Equal("seven", dto.Name);
+    }
+
+    public sealed class SourceGenDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+    }
+
+    [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+    [JsonSerializable(typeof(Result<SourceGenDto>))]
+    [JsonSerializable(typeof(SourceGenDto))]
+    private partial class SourceGenContext : JsonSerializerContext;
+}
