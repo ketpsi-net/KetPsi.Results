@@ -13,6 +13,12 @@ public abstract partial record Result
     public Status Status { get; init; }
 
     /// <summary>
+    /// Gets the errors of a failed result (generic or non-generic), or an empty list otherwise.
+    /// Lets base-typed helpers see the errors of <see cref="FailedResult{T}"/> without knowing <c>T</c>.
+    /// </summary>
+    internal virtual IReadOnlyList<ErrorResult> ErrorsOrEmpty => [];
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="Result"/> class.
     /// </summary>
     /// <param name="status">The operational status.</param>
@@ -256,10 +262,13 @@ public abstract partial record Result
 
         foreach (var result in results)
         {
-            if (result is FailedResult failed)
+            if (result is null)
+                throw new ArgumentException("Results cannot contain null.", nameof(results));
+
+            if (result.Status == Status.Failed)
             {
                 errors ??= new List<ErrorResult>();
-                errors.AddRange(failed.Errors);
+                errors.AddRange(result.ErrorsOrEmpty);
             }
         }
 
@@ -340,6 +349,8 @@ public record FailedResult<T> : Result<T>
     /// <summary>Gets the first error, or <see langword="null"/> if the list is empty.</summary>
     public ErrorResult? FirstError => Errors.Count > 0 ? Errors[0] : null;
 
+    internal override IReadOnlyList<ErrorResult> ErrorsOrEmpty => Errors;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="FailedResult{T}"/> record.
     /// </summary>
@@ -379,6 +390,8 @@ public record FailedResult : Result
 
     /// <summary>Gets the first error, or <see langword="null"/> if the list is empty.</summary>
     public ErrorResult? FirstError => Errors.Count > 0 ? Errors[0] : null;
+
+    internal override IReadOnlyList<ErrorResult> ErrorsOrEmpty => Errors;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FailedResult"/> record.

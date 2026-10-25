@@ -45,20 +45,18 @@ public static class ResultExtensions
     }
 
     /// <summary>Returns the error list, or an empty list when the result is not failed.</summary>
-    public static IReadOnlyList<ErrorResult> GetErrors(this Result result)
-        => result is FailedResult failed ? failed.Errors : [];
+    public static IReadOnlyList<ErrorResult> GetErrors(this Result result) => result.ErrorsOrEmpty;
 
     /// <summary>Returns the error list, or an empty list when the result is not failed.</summary>
-    public static IReadOnlyList<ErrorResult> GetErrors<T>(this Result<T> result)
-        => result is FailedResult<T> failed ? failed.Errors : [];
+    public static IReadOnlyList<ErrorResult> GetErrors<T>(this Result<T> result) => result.ErrorsOrEmpty;
 
     /// <summary>Returns the first error, or <see langword="null"/> when the result is not failed.</summary>
     public static ErrorResult? FirstError(this Result result)
-        => result is FailedResult { Errors.Count: > 0 } f ? f.Errors[0] : null;
+        => result.ErrorsOrEmpty is { Count: > 0 } errors ? errors[0] : null;
 
     /// <summary>Returns the first error, or <see langword="null"/> when the result is not failed.</summary>
     public static ErrorResult? FirstError<T>(this Result<T> result)
-        => result is FailedResult<T> { Errors.Count: > 0 } f ? f.Errors[0] : null;
+        => result.ErrorsOrEmpty is { Count: > 0 } errors ? errors[0] : null;
 
     /// <summary>Formats all errors as a multi-line string ("code:message").</summary>
     public static string GetErrorAsString(this Result result) => FormatErrors(result.GetErrors());
@@ -179,7 +177,7 @@ public static class ResultExtensions
             throw new InvalidOperationException(
                 $"AsFailed() requires a failed result; status was {result.Status}.");
 
-        return Result.Failed(result.GetErrors());
+        return Result.Failed(result.ErrorsOrEmpty);
     }
 
     /// <summary>
@@ -190,10 +188,13 @@ public static class ResultExtensions
     /// </exception>
     public static FailedResult<T> AsFailed<T>(this Result result)
     {
+        if (result is FailedResult<T> failed)
+            return failed;
+
         if (!result.IsFailed())
             throw new InvalidOperationException(
                 $"AsFailed() requires a failed result; status was {result.Status}.");
 
-        return Result.Failed<T>(result.GetErrors());
+        return Result.Failed<T>(result.ErrorsOrEmpty);
     }
 }
