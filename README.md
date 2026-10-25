@@ -16,7 +16,7 @@ Typical uses:
 - Endpoints mapping `ErrorType` to HTTP status codes and Problem Details  
 - Logging with safe messages while keeping raw diagnostic metadata  
 
-**Target frameworks:** `net8.0`, `net9.0`
+**Target frameworks:** `net8.0`, `net9.0`, `net10.0`
 
 ---
 
@@ -35,7 +35,7 @@ Callers cannot tell from the type alone what is safe to read. KetPsi.Results mak
 | Status | Guarantee |
 |--------|-----------|
 | **Success** | Payload is the result (`Result<T>.Value`). No error list. |
-| **Failed** | One or more `ErrorResult`s. No success payload to misuse. |
+| **Failed** | One or more `ErrorResult`s (never empty). No success payload to misuse. |
 | **InProgress** | Tracking / intermediate value only—not a finished entity. |
 
 A failure is never “just a string.” Each error has:
@@ -110,7 +110,14 @@ Result.Failed<Order>(ErrorType.NotFound, "res.missing", "Item not found");
 // From ErrorResult instance(s)
 Result.Failed(error);
 Result.Failed(error1, error2);
-Result.Failed(errorList);
+Result.Failed(errorList);          // list is copied; must contain at least one error
+
+// Fluent builder for one-off codes + metadata
+Result.Failed(err => err
+    .WithErrorType(ErrorType.Failure)
+    .WithCode("integration.keycloak.invalid_grant")
+    .WithMessage(description)
+    .AddMetadata("status_code", 400));
 
 // Interpolated message → message + auto metadata
 int id = 42;
@@ -127,8 +134,15 @@ Result.FromException<Order>(ex);
 // OperationCanceledException → ErrorType.Canceled by default
 
 Result.Combine(validate, checkQuota, ensureUnique);
-// Any failure → single FailedResult with all errors; else Success
+// Any failure (generic or not) → single FailedResult with all errors; else Success
 ```
+
+### Invariants and equality
+
+- A failed result always has **at least one** error. `Result.Failed([])`, or `failed with { Errors = [] }`, throws `ArgumentException`.
+- Error lists are **copied** when a result is created, and so is metadata passed to `ErrorResult.Create`. Changing your list or dictionary afterwards does not change the result.
+- `Status` cannot be changed with `with { ... }`.
+- Results and errors use **value equality**: two failures with the same errors (type, code, message, metadata entries) are equal.
 
 ---
 
@@ -167,6 +181,13 @@ Result.Service.Unavailable("keycloak", "timeout", "Keycloak did not respond");
 
 Result.Service.Failure("keycloak", "invalid_grant", description);
 Result.Service.Failure("keycloak", errorCode, $"Provider error: {detail:@detail}");
+
+// Fluent form, with extra metadata
+Result.Service.Failure(b => b
+    .WithServiceName("keycloak")
+    .WithCode("invalid_grant")
+    .WithMessage($"Provider error: {detail:@detail}")
+    .AddMetadata("status_code", 400));
 ```
 
 | Method | Use when | ErrorType |
@@ -185,7 +206,7 @@ if (result.IsInProgress()) { }
 
 if (result.TryGetResult(out var value))
 {
-    // Success or InProgress value
+    // Success or InProgress value (may be null when T is nullable, e.g. Success<string?>(null))
 }
 
 var errors = result.GetErrors();     // empty list if not failed
@@ -208,8 +229,10 @@ Non-generic `FailedResult` converts implicitly to any `Result<T>`. For an existi
 
 ```csharp
 if (token.IsFailed())
-    return token.AsFailed<OrderDto>();   // misuse on success → throws (bug)
+    return token.AsFailed<OrderDto>();   // keeps all errors; misuse on success → throws (bug)
 ```
+
+The inspection helpers (`GetErrors`, `FirstError`, `Match`, `AsFailed`) also work when a `Result<T>` is held as plain `Result`.
 
 ---
 
@@ -217,10 +240,10 @@ if (token.IsFailed())
 
 Factories that take a message support an interpolated-string handler. It builds the display string and **automatically stores raw values in metadata**.
 
-**Syntax** (colon-separated):
+**Syntax** (colon-separated, after the optional `,alignment`):
 
 ```text
-[@Key:][standardFormat][:mask[:range]][:trunc:N]
+{value[,alignment][:[@Key:][standardFormat][:mask[:range]][:trunc:N]]}
 ```
 
 | Feature | Example | Result |
@@ -228,12 +251,13 @@ Factories that take a message support an interpolated-string handler. It builds 
 | Auto key | `{orderId}` | Metadata key `orderId` |
 | Override key | `{orderId:@id}` | Metadata key `id` |
 | Format | `{amount:N2}`, `{dt:yyyy-MM-dd HH:mm}` | Standard .NET formatting (colons preserved) |
-| Full mask | `{token:mask}` | Message shows `***`; metadata keeps raw token |
+| Full mask | `{token:mask}` | Message always shows `***` (whatever the length); metadata keeps raw token |
 | Range mask | `{token:mask:..4}` | Mask indices `[0, 4)` |
 | | `{token:mask:2..}` | Mask from index 2 to end |
 | | `{token:mask:2..-2}` | Mask from 2 to second-to-last |
 | Truncate | `{name:trunc:8}` | Keep first 8 characters |
 | | `{name:trunc:0}` | Empty string |
+| Alignment | `{id,8}`, `{code,-6:@c:mask:..2}` | Pads the display text (after directives) |
 
 ```csharp
 string token = "sk-abc123xyz789";
@@ -244,7 +268,9 @@ return Result.Authentication.Unauthorized(
 // Metadata: { "token": "sk-abc123xyz789", "uid": 42 }
 ```
 
-Use metadata server-side for structured logs; return or display the message where redaction matters.
+Directives run in this order: format, then truncate, then mask, then alignment.
+
+Use metadata server-side for structured logs. Show the message wherever redaction matters, because metadata holds the **unmasked** values.
 
 ---
 
@@ -254,7 +280,7 @@ Use metadata server-side for structured logs; return or display the message wher
 failed.ToStatusCode();                 // from FirstError.Type
 ErrorType.NotFound.ToStatusCode();     // 404
 
-failed.ToProblemDetails();
+failed.ToProblemDetails();                           // FailedResult or FailedResult<T>
 failed.ToProblemDetails(instance: "/api/orders/99");
 ```
 
@@ -321,7 +347,15 @@ Wire format:
 }
 ```
 
-Nested `value` uses `JsonTypeInfo` from the options resolver when source generation is configured.
+- Concrete types (`SuccessResult<T>`, `FailedResult`, …) serialize with the same shape. Deserializing into a concrete type whose `status` does not match throws `JsonException`.
+- A `Failed` payload must carry a non-empty `errors` array.
+- `value` is resolved through the options' `TypeInfoResolver`, so source-generated `JsonSerializerContext`s work. Copy the context options, then add the converters:
+
+```csharp
+var options = new JsonSerializerOptions(AppJsonContext.Default.Options).AddKetPsiResultConverters();
+```
+
+- Metadata values are deserialized as `JsonElement`.
 
 ASP.NET Core:
 
@@ -340,8 +374,10 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 var page = PagedData<Order>.Create(items, pageNumber: 2, pageSize: 20, totalCount: 95);
 return Result.Success(page);
 
-// page.HasNextPage, page.HasPreviousPage
+// page.HasNextPage, page.HasPreviousPage, page.TotalPages (5)
 ```
+
+`Create` throws `ArgumentOutOfRangeException` when `pageNumber < 1`, `pageSize < 1` or `totalCount < 0`.
 
 ---
 
@@ -423,6 +459,11 @@ return order.ToDto();
 dotnet add package KetPsi.Results
 ```
 
+## Development
+
 ```bash
-dotnet test
+dotnet build KetPsi.Results.sln
+dotnet test tests/KetPsi.Results.Tests/KetPsi.Results.Tests.csproj
 ```
+
+Releases are published to NuGet when a tag matching the version in `version.props` is pushed (`X.Y.Z` from `main`, `X.Y.Z-preview.N` from `release/*`).
