@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace KetPsi.Results;
 
 /// <summary>
@@ -28,17 +26,15 @@ public record ErrorResult
     /// <param name="code">A unique, domain-specific string identifier.</param>
     /// <param name="message">A human-readable explanation of the error.</param>
     /// <param name="metadata">Optional raw data points associated with the error.</param>
+    /// <remarks>Takes ownership of <paramref name="metadata"/> without copying; use <see cref="Create(ErrorType, string, string, IReadOnlyDictionary{string, object?}?)"/> for caller-owned dictionaries.</remarks>
     internal ErrorResult(ErrorType type, string code, string message, IReadOnlyDictionary<string, object?>? metadata)
     {
+        ArgumentNullException.ThrowIfNull(code);
+
         Type = type;
         Code = code;
-        Message = message;
-        Metadata = metadata;
-    }
-
-    private ErrorResult() : this(ErrorType.Failure, string.Empty, string.Empty, new Dictionary<string, object?>())
-    {
-
+        Message = message ?? string.Empty;
+        Metadata = metadata is { Count: > 0 } ? metadata : null;
     }
 
     /// <summary>
@@ -59,10 +55,13 @@ public record ErrorResult
     /// <param name="type">The structural category of the error.</param>
     /// <param name="code">A unique, domain-specific string identifier for the error.</param>
     /// <param name="message">A human-readable explanation of the error.</param>
-    /// <param name="metadata">Optional raw data points associated with the error.</param>
+    /// <param name="metadata">
+    /// Optional raw data points associated with the error. The entries are copied, so later changes
+    /// to the caller's dictionary do not affect the error. An empty dictionary is stored as <see langword="null"/>.
+    /// </param>
     /// <returns>A newly created <see cref="ErrorResult"/>.</returns>
     public static ErrorResult Create(ErrorType type, string code, string message, IReadOnlyDictionary<string, object?>? metadata)
-        => new(type, code, message, metadata);
+        => new(type, code, message, metadata is { Count: > 0 } ? new Dictionary<string, object?>(metadata) : null);
 
     /// <summary>
     /// Value equality over type, code, message and metadata entries
@@ -116,7 +115,7 @@ public record ErrorResult
     ///   <item><see cref="ErrorType"/> = <see cref="ErrorType.Failure"/></item>
     ///   <item><c>Code</c> = empty string</item>
     ///   <item><c>Message</c> = empty string</item>
-    ///   <item><c>Metadata</c> = empty dictionary</item>
+    ///   <item><c>Metadata</c> = <see langword="null"/> (no entries)</item>
     /// </list>
     /// <para>
     /// Callers should set at least a stable <c>Code</c> and a human-readable <c>Message</c>
@@ -128,7 +127,7 @@ public record ErrorResult
         ErrorType _errorType = ErrorType.Failure;
         string _code = string.Empty;
         string _message = string.Empty;
-        readonly Dictionary<string, object?> _metadata = new();
+        Dictionary<string, object?>? _metadata;
 
         /// <summary>Sets the structural <see cref="ErrorType"/> (default: <see cref="ErrorType.Failure"/>).</summary>
         public ErrorResultBuilder WithErrorType(ErrorType errorType)
@@ -150,9 +149,10 @@ public record ErrorResult
             return this;
         }
 
-        /// <summary>Adds a metadata entry. Throws if <paramref name="key"/> already exists.</summary>
+        /// <summary>Adds or replaces a metadata entry.</summary>
         public ErrorResultBuilder AddMetadata(string key, object? value)
         {
+            _metadata ??= new Dictionary<string, object?>(StringComparer.Ordinal);
             _metadata[key] = value;
             return this;
         }
@@ -161,11 +161,7 @@ public record ErrorResult
         /// Builds an <see cref="ErrorResult"/> from the current state.
         /// Unset fields keep their defaults (<see cref="ErrorType.Failure"/>, empty code/message).
         /// </summary>
-        internal ErrorResult Build()
-        {
-            Debug.Assert(!string.IsNullOrEmpty(_code));
-            return new ErrorResult(_errorType, _code, _message, _metadata);
-        }
+        internal ErrorResult Build() => new(_errorType, _code, _message, _metadata);
     }
 
 }

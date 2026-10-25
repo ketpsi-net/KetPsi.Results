@@ -432,7 +432,7 @@ public record FailedResult : Result
     /// Initializes a new instance from type, code, message and metadata.
     /// </summary>
     internal FailedResult(ErrorType type, string code, string message, IReadOnlyDictionary<string, object?>? metadata)
-        : this(ErrorResult.Create(type, code, message, metadata)) { }
+        : this(new ErrorResult(type, code, message, metadata)) { }
 
     /// <inheritdoc />
     public virtual bool Equals(FailedResult? other)

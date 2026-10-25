@@ -166,5 +166,21 @@ public class ResultRegressionTests
         Assert.Throws<ArgumentException>(() => Result.Combine(Result.Success(), null!));
     }
 
+    // ───────────────────────────── Builders ─────────────────────────────
+
+    [Fact]
+    public void ErrorBuilder_WithoutMetadata_HasNullMetadata()
+    {
+        var failed = Result.Failed(e => e.WithCode("c").WithMessage("m"));
+        Assert.Null(failed.FirstError!.Metadata);
+    }
+
+    [Fact]
+    public void ServiceBuilder_WithoutMetadata_HasNullMetadata()
+    {
+        var failed = Result.Service.Failure(b => b.WithServiceName("svc").WithMessage("m"));
+        Assert.Null(failed.FirstError!.Metadata);
+    }
+
 }
 
