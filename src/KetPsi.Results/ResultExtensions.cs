@@ -26,7 +26,12 @@ public static class ResultExtensions
     /// <summary>
     /// Tries to extract the value when the result is successful or in-progress.
     /// </summary>
-    public static bool TryGetResult<T>(this Result<T> result, [NotNullWhen(true)] out T? value)
+    /// <remarks>
+    /// Returns <see langword="true"/> for <c>Result.Success&lt;string?&gt;(null)</c> with a
+    /// <see langword="null"/> value: a successful outcome may legitimately carry <see langword="null"/>
+    /// when <typeparamref name="T"/> is nullable.
+    /// </remarks>
+    public static bool TryGetResult<T>(this Result<T> result, [MaybeNullWhen(false)] out T value)
     {
         if (result is SuccessResult<T> success)
         {

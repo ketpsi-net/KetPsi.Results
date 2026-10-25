@@ -166,6 +166,17 @@ public class ResultRegressionTests
         Assert.Throws<ArgumentException>(() => Result.Combine(Result.Success(), null!));
     }
 
+    // ───────────────────────────── TryGetResult nullability ─────────────────────────────
+
+    [Fact]
+    public void TryGetResult_SuccessWithNull_ReturnsTrueAndNull()
+    {
+        Result<string?> result = Result.Success<string?>(null);
+
+        Assert.True(result.TryGetResult(out var value));
+        Assert.Null(value);
+    }
+
     // ───────────────────────────── Builders ─────────────────────────────
 
     [Fact]
