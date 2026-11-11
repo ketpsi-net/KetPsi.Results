@@ -280,7 +280,17 @@ public abstract partial record Result
 /// Represents the generic outcome of an operation that includes a data payload.
 /// </summary>
 /// <typeparam name="T">The type of the underlying value.</typeparam>
+/// <remarks>
+/// On .NET 11 and later the type is <c>closed</c> (C# 15): its only subtypes are
+/// <see cref="SuccessResult{T}"/>, <see cref="InProgressResult{T}"/> and <see cref="FailedResult{T}"/>,
+/// so a <c>switch</c> that handles those three is exhaustive without a discard arm, and the compiler
+/// warns (CS8509) when one is missing.
+/// </remarks>
+#if NET11_0_OR_GREATER
+public closed record Result<T> : Result
+#else
 public abstract record Result<T> : Result
+#endif
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="Result{T}"/> class.

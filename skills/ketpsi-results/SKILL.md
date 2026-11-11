@@ -172,6 +172,18 @@ FailedResult f = r.AsFailed();
 
 These helpers work even when a `Result<T>` is stored in a variable of type `Result`. In your own code, do **not** check for failure with `r is FailedResult`: `FailedResult<T>` does not derive from `FailedResult`. Use `r.IsFailed()` and `r.GetErrors()`. Pattern matching on the exact concrete type (`r is FailedResult<Order> f`) is fine.
 
+**Exhaustive switch on .NET 11.** When the consuming project targets `net11.0` or later, `Result<T>` is a `closed` record (C# 15). A switch over `Result<T>` that handles `SuccessResult<T>`, `InProgressResult<T>` and `FailedResult<T>` is exhaustive, so don't add a `_ =>` arm there. If a case is missing, the compiler reports CS8509. On `net9.0`/`net10.0`, and on multi-targeted projects that include them, keep the discard arm. The non-generic `Result` is never closed, so a switch over `Result` always needs a discard:
+
+```csharp
+// net11.0+
+return result switch
+{
+    SuccessResult<Order> s    => Results.Ok(s.Value),
+    InProgressResult<Order> p => Results.Accepted(value: p.Value),
+    FailedResult<Order> f     => Results.Json(f.ToProblemDetails(), statusCode: f.ToStatusCode()),
+};
+```
+
 ### ErrorResult and ErrorType
 
 - `ErrorResult` exposes `Type`, `Code`, `Message` and `Metadata` (`IReadOnlyDictionary<string, object?>?`, `null` when empty). `ToString()` returns `"code: message"`.

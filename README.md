@@ -234,6 +234,23 @@ if (token.IsFailed())
 
 The inspection helpers (`GetErrors`, `FirstError`, `Match`, `AsFailed`) also work when a `Result<T>` is held as plain `Result`.
 
+### Exhaustive `switch` (.NET 11)
+
+On `net11.0`, `Result<T>` is a C# 15 `closed` record: its only subtypes are `SuccessResult<T>`, `InProgressResult<T>` and `FailedResult<T>`. A switch that handles those three is exhaustive without a discard arm, and if a case is missing the compiler reports CS8509 and names it:
+
+```csharp
+string text = result switch
+{
+    SuccessResult<Order> s    => $"order {s.Value.Id}",
+    InProgressResult<Order> p => "still processing",
+    FailedResult<Order> f     => f.Errors[0].Code,
+};   // no `_ =>` needed on net11.0
+```
+
+Existing `_ =>` arms still compile. On `net9.0` and `net10.0` the type is a plain `abstract record`, so you still need the discard arm there. The API is the same on every target. Only the compiler's exhaustiveness check differs. To get build errors for missing cases, add `<WarningsAsErrors>$(WarningsAsErrors);CS8509</WarningsAsErrors>` to your project.
+
+The non-generic `Result` is not closed, because a `Result` variable can also hold any `Result<T>`. Switches over `Result` still need a discard.
+
 ---
 
 ## Error message handler
@@ -450,6 +467,7 @@ return order.ToDto();
 | Handler + metadata | One expression for safe message and full diagnostics |
 | Domain + Service factories | Shared codes and types across services |
 | Throw on API misuse | e.g. `AsFailed` on success is a bug, not a domain error |
+| `closed` record on net11, not a C# `union` | A union is a struct whose `default` holds no state, and it can't derive from `Result`. `closed` gives the same exhaustive `switch` with the same API on every target |
 
 ---
 
