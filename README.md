@@ -1,7 +1,7 @@
 # KetPsi.Results
 
 [![NuGet](https://img.shields.io/nuget/v/KetPsi.Results.svg)](https://www.nuget.org/packages/KetPsi.Results/)
-[![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-purple.svg?style=flat-square)](https://dotnet.microsoft.com/)
+[![.NET](https://img.shields.io/badge/.NET-9.0%20%7C%2010.0%20%7C%2011.0-purple.svg?style=flat-square)](https://dotnet.microsoft.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
 
@@ -16,7 +16,7 @@ Typical uses:
 - Endpoints mapping `ErrorType` to HTTP status codes and Problem Details  
 - Logging with safe messages while keeping raw diagnostic metadata  
 
-**Target frameworks:** `net8.0`, `net9.0`, `net10.0`
+**Target frameworks:** `net9.0`, `net10.0`, `net11.0`
 
 ---
 
@@ -465,5 +465,7 @@ dotnet add package KetPsi.Results
 dotnet build KetPsi.Results.sln
 dotnet test tests/KetPsi.Results.Tests/KetPsi.Results.Tests.csproj
 ```
+
+Building requires the .NET 11 SDK. The tests run on `net10.0` and `net11.0`, so the .NET 10 runtime is needed as well.
 
 Releases are published to NuGet when a tag matching the version in `version.props` is pushed (`X.Y.Z` from `main`, `X.Y.Z-preview.N` from `release/*`).

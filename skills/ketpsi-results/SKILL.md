@@ -5,7 +5,7 @@ description: How to use the KetPsi.Results .NET library (Result / Result<T>, Err
 
 # KetPsi.Results
 
-A small .NET library (`net8.0`, `net9.0`, `net10.0`) for returning operation outcomes. A `Result` is always exactly one of three states:
+A small .NET library (`net9.0`, `net10.0`, `net11.0`) for returning operation outcomes. A `Result` is always exactly one of three states:
 
 | Status | Concrete types | Carries |
 |---|---|---|
