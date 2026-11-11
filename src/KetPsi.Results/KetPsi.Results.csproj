@@ -9,6 +9,9 @@
     <RootNamespace>KetPsi.Results</RootNamespace>
     <AssemblyName>KetPsi.Results</AssemblyName>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- Trim/AOT analyzer warnings (IL2xxx, IL3xxx) must not ship. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Description>High-performance Result pattern library for application and infrastructure layers with structured errors, metadata capture, and functional helpers.</Description>
   </PropertyGroup>
 

@@ -222,7 +222,7 @@ app.MapGet("/orders/{id:guid}", async (Guid id, OrderService svc, CancellationTo
 
 ## JSON (System.Text.Json)
 
-Results need converters, because their constructors are internal:
+Every result type and `ErrorResult` carries a `[JsonConverter]` attribute, so the format below works with no setup. Registering the converters explicitly is still supported and harmless:
 
 ```csharp
 var options = new JsonSerializerOptions(JsonSerializerDefaults.Web).AddKetPsiResultConverters();   // safe to call twice
@@ -242,7 +242,16 @@ Wire format (property names follow the naming policy):
 
 - Deserialize into `Result<T>` or `Result`. Concrete targets like `SuccessResult<T>` also work, but throw `JsonException` when the status doesn't match.
 - Success and InProgress payloads of `Result<T>` require `value`. Failed payloads require a non-empty `errors` array. `status` is required.
-- Metadata values come back as `JsonElement`, not their original CLR types.
+- Metadata values come back as `JsonElement`, not their original CLR types. With a source-generated context that doesn't list a metadata value's type, primitives, `Guid` and dates are written as-is and anything else as an invariant string, so an enum is written by name.
+
+### Native AOT
+
+The library is AOT- and trim-safe. In a Native AOT app:
+
+- List each result type **and** its payload type in the `JsonSerializerContext` (`Result<OrderDto>` and `OrderDto`, `Result<int>` and `int`). The generator doesn't look inside the result converters.
+- Serialize with `JsonTypeInfo<T>`, e.g. `JsonSerializer.Serialize(r, (JsonTypeInfo<Result<OrderDto>>)options.GetTypeInfo(typeof(Result<OrderDto>)))`. Never use the overloads that take only `options`.
+- If the app targets **net9.0 or net10.0**, call `options.AddKetPsiResultConverters<T>()` for every payload type `T`. Without it, serializing throws `NotSupportedException` naming the missing call. On **net11.0** this isn't needed.
+- You don't need `AddKetPsiResultConverters<T>()` without Native AOT; JIT and `PublishTrimmed` apps are fine without it.
 
 ## Paging
 

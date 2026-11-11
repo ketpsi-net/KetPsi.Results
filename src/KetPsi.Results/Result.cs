@@ -1,3 +1,6 @@
+﻿using System.Text.Json.Serialization;
+using KetPsi.Results.Serialization;
+
 namespace KetPsi.Results;
 
 /// <summary>
@@ -5,6 +8,7 @@ namespace KetPsi.Results;
 /// Provides factory methods for success, failure, in-progress, exception conversion,
 /// and error combination.
 /// </summary>
+[JsonConverter(typeof(ResultJsonConverter))]
 public abstract partial record Result
 {
     private const string InternalErrorCode = "server.internal_error";
@@ -287,6 +291,11 @@ public abstract partial record Result
 /// warns (CS8509) when one is missing.
 /// </remarks>
 #if NET11_0_OR_GREATER
+[JsonConverter(typeof(ResultOfTJsonConverter<>))]
+#else
+[JsonConverter(typeof(ResultJsonConverterFactory))]
+#endif
+#if NET11_0_OR_GREATER
 public closed record Result<T> : Result
 #else
 public abstract record Result<T> : Result
@@ -315,6 +324,11 @@ public abstract record Result<T> : Result
 /// Represents a successful generic outcome containing a value.
 /// </summary>
 /// <typeparam name="T">The type of the underlying value.</typeparam>
+#if NET11_0_OR_GREATER
+[JsonConverter(typeof(SuccessResultJsonConverter<>))]
+#else
+[JsonConverter(typeof(ResultJsonConverterFactory))]
+#endif
 public record SuccessResult<T> : Result<T>
 {
     /// <summary>Gets the underlying result value.</summary>
@@ -331,6 +345,11 @@ public record SuccessResult<T> : Result<T>
 /// Represents a generic outcome that is currently in progress.
 /// </summary>
 /// <typeparam name="T">The type of the tracking value.</typeparam>
+#if NET11_0_OR_GREATER
+[JsonConverter(typeof(InProgressResultJsonConverter<>))]
+#else
+[JsonConverter(typeof(ResultJsonConverterFactory))]
+#endif
 public record InProgressResult<T> : Result<T>
 {
     /// <summary>Gets the tracking token or in-progress state value.</summary>
@@ -347,6 +366,11 @@ public record InProgressResult<T> : Result<T>
 /// Represents a failed generic outcome containing one or more errors.
 /// </summary>
 /// <typeparam name="T">The type of the underlying value.</typeparam>
+#if NET11_0_OR_GREATER
+[JsonConverter(typeof(FailedResultJsonConverter<>))]
+#else
+[JsonConverter(typeof(ResultJsonConverterFactory))]
+#endif
 public record FailedResult<T> : Result<T>
 {
     private readonly IReadOnlyList<ErrorResult> _errors;
@@ -381,6 +405,7 @@ public record FailedResult<T> : Result<T>
 /// <summary>
 /// Represents a successful non-generic outcome.
 /// </summary>
+[JsonConverter(typeof(SuccessResultJsonConverter))]
 public record SuccessResult : Result
 {
     /// <summary>
@@ -392,6 +417,7 @@ public record SuccessResult : Result
 /// <summary>
 /// Represents a non-generic outcome that is currently in progress.
 /// </summary>
+[JsonConverter(typeof(InProgressResultJsonConverter))]
 public record InProgressResult : Result
 {
     /// <summary>
@@ -403,6 +429,7 @@ public record InProgressResult : Result
 /// <summary>
 /// Represents a failed non-generic outcome containing one or more errors.
 /// </summary>
+[JsonConverter(typeof(FailedResultJsonConverter))]
 public record FailedResult : Result
 {
     private readonly IReadOnlyList<ErrorResult> _errors;
