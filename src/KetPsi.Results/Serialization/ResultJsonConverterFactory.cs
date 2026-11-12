@@ -1,4 +1,6 @@
-﻿using System.Text.Json;
+﻿using System.Globalization;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
@@ -9,13 +11,23 @@ namespace KetPsi.Results.Serialization;
 /// their concrete variants, and <see cref="ErrorResult"/>.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Wire shape (camelCase when that naming policy is configured):
 /// <code>
 /// { "status": "Success"|"Failed"|"InProgress", "value": ..., "errors": [ ... ] }
 /// </code>
-/// Nested <c>value</c> and <see cref="ErrorResult"/> payloads use
-/// <see cref="JsonSerializer"/> with the supplied options so source-generated
-/// <see cref="JsonTypeInfo"/> is respected when present.
+/// Nested <c>value</c> payloads are resolved through the options' <see cref="JsonTypeInfo"/> resolver,
+/// so source-generated contexts are honored.
+/// </para>
+/// <para>
+/// Every result type also carries a <see cref="JsonConverterAttribute"/>, so registering this factory is
+/// optional. On .NET 11 the generic result types use open generic converters
+/// (e.g. <see cref="ResultOfTJsonConverter{T}"/>) that System.Text.Json and its source generator instantiate
+/// statically, which is Native AOT safe for every <c>T</c>. On .NET 9 and 10 this factory builds the generic
+/// converters with <see cref="Type.MakeGenericType"/>; under Native AOT, where that is not available,
+/// register each payload type with
+/// <see cref="ResultJsonSerializerOptionsExtensions.AddKetPsiResultConverters{T}(JsonSerializerOptions)"/>.
+/// </para>
 /// </remarks>
 public sealed class ResultJsonConverterFactory : JsonConverterFactory
 {
@@ -29,14 +41,12 @@ public sealed class ResultJsonConverterFactory : JsonConverterFactory
             || typeToConvert == typeof(ErrorResult))
             return true;
 
-        if (!typeToConvert.IsGenericType)
-            return false;
-
-        var def = typeToConvert.GetGenericTypeDefinition();
-        return def == typeof(Result<>)
-               || def == typeof(SuccessResult<>)
-               || def == typeof(InProgressResult<>)
-               || def == typeof(FailedResult<>);
+#if NET11_0_OR_GREATER
+        // Generic results are handled by the open generic [JsonConverter] attributes on the types themselves.
+        return false;
+#else
+        return IsGenericResult(typeToConvert);
+#endif
     }
 
     /// <inheritdoc />
@@ -44,47 +54,53 @@ public sealed class ResultJsonConverterFactory : JsonConverterFactory
     {
         if (typeToConvert == typeof(ErrorResult))
             return new ErrorResultJsonConverter();
-
         if (typeToConvert == typeof(Result))
             return new ResultJsonConverter();
+        if (typeToConvert == typeof(SuccessResult))
+            return new SuccessResultJsonConverter();
+        if (typeToConvert == typeof(InProgressResult))
+            return new InProgressResultJsonConverter();
+        if (typeToConvert == typeof(FailedResult))
+            return new FailedResultJsonConverter();
 
-        if (typeToConvert == typeof(SuccessResult)
-            || typeToConvert == typeof(InProgressResult)
-            || typeToConvert == typeof(FailedResult))
-            return CreateConcrete(typeToConvert, typeof(Result), new ResultJsonConverter());
+#if NET11_0_OR_GREATER
+        throw new ArgumentException($"{typeToConvert} is not a KetPsi result type.", nameof(typeToConvert));
+#else
+        if (!IsGenericResult(typeToConvert))
+            throw new ArgumentException($"{typeToConvert} is not a KetPsi result type.", nameof(typeToConvert));
 
-        var t = typeToConvert.GetGenericArguments()[0];
-        var baseType = typeof(Result<>).MakeGenericType(t);
-        var inner = (JsonConverter)Activator.CreateInstance(typeof(ResultOfTJsonConverter<>).MakeGenericType(t))!;
+        var definition = typeToConvert.GetGenericTypeDefinition();
+        var valueType = typeToConvert.GetGenericArguments()[0];
 
-        return typeToConvert == baseType ? inner : CreateConcrete(typeToConvert, baseType, inner);
+        if (!RuntimeFeature.IsDynamicCodeSupported)
+            throw new NotSupportedException(
+                $"Cannot create a JSON converter for {typeToConvert} under Native AOT on this target framework. " +
+                $"Call options.AddKetPsiResultConverters<{valueType.Name}>() for each result payload type, or target net11.0.");
+
+        // Each typeof(...) stays inline so the trim analyzer can see which converter's constructor is needed.
+        var converterType =
+            definition == typeof(Result<>) ? typeof(ResultOfTJsonConverter<>).MakeGenericType(valueType)
+            : definition == typeof(SuccessResult<>) ? typeof(SuccessResultJsonConverter<>).MakeGenericType(valueType)
+            : definition == typeof(InProgressResult<>) ? typeof(InProgressResultJsonConverter<>).MakeGenericType(valueType)
+            : typeof(FailedResultJsonConverter<>).MakeGenericType(valueType);
+
+        return (JsonConverter)Activator.CreateInstance(converterType)!;
+#endif
     }
 
-    private static JsonConverter CreateConcrete(Type concreteType, Type baseType, JsonConverter inner)
+#if !NET11_0_OR_GREATER
+    private static bool IsGenericResult(Type typeToConvert)
     {
-        var converterType = typeof(ConcreteResultJsonConverter<,>).MakeGenericType(concreteType, baseType);
-        return (JsonConverter)Activator.CreateInstance(converterType, inner)!;
-    }
-}
+        if (!typeToConvert.IsGenericType)
+            return false;
 
-/// <summary>
-/// Serializes a concrete result type (e.g. <see cref="SuccessResult{T}"/>) with the converter of its base
-/// result type, and on read rejects JSON whose <c>status</c> does not match the requested type.
-/// </summary>
-internal sealed class ConcreteResultJsonConverter<TConcrete, TBase>(JsonConverter<TBase> inner) : JsonConverter<TConcrete>
-    where TConcrete : TBase
-{
-    public override TConcrete Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        var result = inner.Read(ref reader, typeof(TBase), options);
-        return result is TConcrete concrete
-            ? concrete
-            : throw new JsonException(
-                $"Cannot deserialize {result?.GetType().Name ?? "null"} as {typeof(TConcrete).Name}; the JSON status does not match.");
+        var definition = typeToConvert.GetGenericTypeDefinition();
+        return definition == typeof(Result<>)
+               || definition == typeof(SuccessResult<>)
+               || definition == typeof(InProgressResult<>)
+               || definition == typeof(FailedResult<>);
     }
-
-    public override void Write(Utf8JsonWriter writer, TConcrete value, JsonSerializerOptions options)
-        => inner.Write(writer, value, options);
+#endif
 }
 
 /// <summary>
@@ -92,6 +108,10 @@ internal sealed class ConcreteResultJsonConverter<TConcrete, TBase>(JsonConverte
 /// </summary>
 public sealed class ErrorResultJsonConverter : JsonConverter<ErrorResult>
 {
+    // Errors inside a result are always written with this converter, so a source-generated context
+    // does not need to list ErrorResult.
+    internal static readonly ErrorResultJsonConverter Instance = new();
+
     /// <inheritdoc />
     public override ErrorResult Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
@@ -150,15 +170,55 @@ public sealed class ErrorResultJsonConverter : JsonConverter<ErrorResult>
             foreach (var (key, val) in value.Metadata)
             {
                 writer.WritePropertyName(key);
-                if (val is null)
-                    writer.WriteNullValue();
-                else
-                    JsonSerializer.Serialize(writer, val, val.GetType(), options);
+                WriteMetadataValue(writer, val, options);
             }
             writer.WriteEndObject();
         }
 
         writer.WriteEndObject();
+    }
+
+    /// <summary>
+    /// Writes a metadata value through the options' type metadata when the resolver knows its runtime type,
+    /// which is always the case with reflection-based options. Otherwise (e.g. a source-generated context that
+    /// does not list the type) primitives are written directly and anything else as its invariant string form.
+    /// </summary>
+    private static void WriteMetadataValue(Utf8JsonWriter writer, object? value, JsonSerializerOptions options)
+    {
+        if (value is null)
+        {
+            writer.WriteNullValue();
+            return;
+        }
+
+        if (options.TryGetTypeInfo(value.GetType(), out var typeInfo))
+        {
+            JsonSerializer.Serialize(writer, value, typeInfo);
+            return;
+        }
+
+        switch (value)
+        {
+            case string s: writer.WriteStringValue(s); break;
+            case bool b: writer.WriteBooleanValue(b); break;
+            case int i: writer.WriteNumberValue(i); break;
+            case long l: writer.WriteNumberValue(l); break;
+            case short sh: writer.WriteNumberValue(sh); break;
+            case byte by: writer.WriteNumberValue(by); break;
+            case sbyte sb: writer.WriteNumberValue(sb); break;
+            case uint ui: writer.WriteNumberValue(ui); break;
+            case ulong ul: writer.WriteNumberValue(ul); break;
+            case ushort us: writer.WriteNumberValue(us); break;
+            case decimal m: writer.WriteNumberValue(m); break;
+            case double d when double.IsFinite(d): writer.WriteNumberValue(d); break;
+            case float f when float.IsFinite(f): writer.WriteNumberValue(f); break;
+            case Guid g: writer.WriteStringValue(g); break;
+            case DateTime dt: writer.WriteStringValue(dt); break;
+            case DateTimeOffset dto: writer.WriteStringValue(dto); break;
+            case JsonElement element: element.WriteTo(writer); break;
+            case IFormattable formattable: writer.WriteStringValue(formattable.ToString(null, CultureInfo.InvariantCulture)); break;
+            default: writer.WriteStringValue(value.ToString()); break;
+        }
     }
 
     private static ErrorType ReadErrorType(ref Utf8JsonReader reader)
@@ -215,6 +275,8 @@ public sealed class ErrorResultJsonConverter : JsonConverter<ErrorResult>
 /// </summary>
 public sealed class ResultJsonConverter : JsonConverter<Result>
 {
+    internal static readonly ResultJsonConverter Instance = new();
+
     /// <inheritdoc />
     public override Result Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
@@ -316,9 +378,9 @@ public sealed class ResultJsonConverter : JsonConverter<Result>
             if (reader.TokenType == JsonTokenType.EndArray)
                 break;
 
-            var error = JsonSerializer.Deserialize<ErrorResult>(ref reader, options)
-                        ?? throw new JsonException("Null ErrorResult in errors array.");
-            list.Add(error);
+            if (reader.TokenType == JsonTokenType.Null)
+                throw new JsonException("Null ErrorResult in errors array.");
+            list.Add(ErrorResultJsonConverter.Instance.Read(ref reader, typeof(ErrorResult), options));
         }
 
         return list;
@@ -333,7 +395,7 @@ public sealed class ResultJsonConverter : JsonConverter<Result>
         writer.WritePropertyName(name);
         writer.WriteStartArray();
         foreach (var error in errors)
-            JsonSerializer.Serialize(writer, error, options);
+            ErrorResultJsonConverter.Instance.Write(writer, error, options);
         writer.WriteEndArray();
     }
 }
@@ -418,9 +480,7 @@ public sealed class ResultOfTJsonConverter<T> : JsonConverter<Result<T>>
         if (reader.TokenType == JsonTokenType.Null)
             return default;
 
-        // Resolves (and caches) JsonTypeInfo through options.TypeInfoResolver, so source-generated
-        // contexts are honored without building a fresh, unconfigured JsonTypeInfo on every call.
-        return JsonSerializer.Deserialize<T>(ref reader, options);
+        return JsonSerializer.Deserialize(ref reader, GetValueTypeInfo(options));
     }
 
     private static void WriteValue(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
@@ -428,6 +488,11 @@ public sealed class ResultOfTJsonConverter<T> : JsonConverter<Result<T>>
         var name = options.PropertyNamingPolicy?.ConvertName("value") ?? "value";
         writer.WritePropertyName(name);
 
-        JsonSerializer.Serialize(writer, value, options);
+        JsonSerializer.Serialize(writer, value, GetValueTypeInfo(options));
     }
+
+    // GetTypeInfo resolves through options.TypeInfoResolver (reflection or a source-generated context) and
+    // caches the result on the options, so this is AOT safe and cheap after the first call.
+    private static JsonTypeInfo<T> GetValueTypeInfo(JsonSerializerOptions options)
+        => (JsonTypeInfo<T>)options.GetTypeInfo(typeof(T));
 }

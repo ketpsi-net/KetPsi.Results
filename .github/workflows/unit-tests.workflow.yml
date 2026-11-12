@@ -35,14 +35,16 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.x'
+          dotnet-version: |
+            10.0.x
+            11.0.x
       - name: Run tests
-        run: dotnet test tests/KetPsi.Results.Tests/KetPsi.Results.Tests.csproj /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura --logger:"junit;LogFilePath=test-result.xml;MethodFormat=Class;FailureBodyFormat=Verbose"
+        run: dotnet test tests/KetPsi.Results.Tests/KetPsi.Results.Tests.csproj /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura --logger:"junit;LogFilePath=test-result.{framework}.xml;MethodFormat=Class;FailureBodyFormat=Verbose"
 
       - name: Archive code coverage results
         uses: 5monkeys/cobertura-action@master
         with:
-          path: tests/KetPsi.Results.Tests/coverage.cobertura.xml
+          path: tests/KetPsi.Results.Tests/coverage.*.cobertura.xml
           name: code-coverage-report
           minimum_coverage: 45
 
@@ -50,4 +52,4 @@ jobs:
         uses: mikepenz/action-junit-report@v4
         with:
           name: test-report
-          path: tests/KetPsi.Results.Tests/test-result.xml
+          path: tests/KetPsi.Results.Tests/test-result.*.xml

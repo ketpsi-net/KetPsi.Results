@@ -1,7 +1,7 @@
 # KetPsi.Results
 
 [![NuGet](https://img.shields.io/nuget/v/KetPsi.Results.svg)](https://www.nuget.org/packages/KetPsi.Results/)
-[![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-purple.svg?style=flat-square)](https://dotnet.microsoft.com/)
+[![.NET](https://img.shields.io/badge/.NET-9.0%20%7C%2010.0%20%7C%2011.0-purple.svg?style=flat-square)](https://dotnet.microsoft.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
 
@@ -16,7 +16,7 @@ Typical uses:
 - Endpoints mapping `ErrorType` to HTTP status codes and Problem Details  
 - Logging with safe messages while keeping raw diagnostic metadata  
 
-**Target frameworks:** `net8.0`, `net9.0`, `net10.0`
+**Target frameworks:** `net9.0`, `net10.0`, `net11.0`
 
 ---
 
@@ -234,6 +234,23 @@ if (token.IsFailed())
 
 The inspection helpers (`GetErrors`, `FirstError`, `Match`, `AsFailed`) also work when a `Result<T>` is held as plain `Result`.
 
+### Exhaustive `switch` (.NET 11)
+
+On `net11.0`, `Result<T>` is a C# 15 `closed` record: its only subtypes are `SuccessResult<T>`, `InProgressResult<T>` and `FailedResult<T>`. A switch that handles those three is exhaustive without a discard arm, and if a case is missing the compiler reports CS8509 and names it:
+
+```csharp
+string text = result switch
+{
+    SuccessResult<Order> s    => $"order {s.Value.Id}",
+    InProgressResult<Order> p => "still processing",
+    FailedResult<Order> f     => f.Errors[0].Code,
+};   // no `_ =>` needed on net11.0
+```
+
+Existing `_ =>` arms still compile. On `net9.0` and `net10.0` the type is a plain `abstract record`, so you still need the discard arm there. The API is the same on every target. Only the compiler's exhaustiveness check differs. To get build errors for missing cases, add `<WarningsAsErrors>$(WarningsAsErrors);CS8509</WarningsAsErrors>` to your project.
+
+The non-generic `Result` is not closed, because a `Result` variable can also hold any `Result<T>`. Switches over `Result` still need a discard.
+
 ---
 
 ## Error message handler
@@ -314,7 +331,7 @@ Example Problem Details shape:
 
 ## JSON serialization (System.Text.Json)
 
-`Result` instances are not plain POCOs (internal construction). Register converters once:
+`Result` instances are not plain POCOs (internal construction), so every result type carries a `[JsonConverter]` attribute and serializes in the format below with no setup. You can also register the converters explicitly; existing code that does this keeps working:
 
 ```csharp
 using KetPsi.Results.Serialization;
@@ -355,7 +372,7 @@ Wire format:
 var options = new JsonSerializerOptions(AppJsonContext.Default.Options).AddKetPsiResultConverters();
 ```
 
-- Metadata values are deserialized as `JsonElement`.
+- Metadata values are deserialized as `JsonElement`. When writing, a metadata value is serialized through the options when the resolver knows its type. With reflection-based options it always does. Otherwise, as with a source-generated context that doesn't list the type, primitives, `Guid` and dates are written directly and other values as invariant strings; an enum, for example, is written by name.
 
 ASP.NET Core:
 
@@ -363,6 +380,31 @@ ASP.NET Core:
 builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.AddKetPsiResultConverters());
 ```
+
+### Native AOT and trimming
+
+The package is marked `IsAotCompatible` and builds with no trim or AOT warnings on every target. A smoke app is published with Native AOT and run on `net10.0` and `net11.0` (see [Development](#development)). In an AOT app:
+
+1. Use a source-generated `JsonSerializerContext` and list each result type you serialize **and its payload type**. The generator doesn't look inside custom converters, so `Result<OrderDto>` needs `OrderDto` (and `Result<int>` needs `int`) listed too.
+2. Serialize through `JsonTypeInfo<T>`, not the `JsonSerializer` overloads that take only `options`.
+3. **On `net9.0`/`net10.0` only:** register every payload type with `AddKetPsiResultConverters<T>()`. On those targets the converter for `Result<T>` is built with `MakeGenericType`, which Native AOT can't do, and a missing registration throws a `NotSupportedException` that names the call to add. On `net11.0` the types carry open generic converter attributes (`[JsonConverter(typeof(ResultOfTJsonConverter<>))]`), which System.Text.Json 11 instantiates statically, so nothing needs registering.
+
+```csharp
+[JsonSerializable(typeof(Result<OrderDto>))]
+[JsonSerializable(typeof(OrderDto))]
+[JsonSerializable(typeof(Result<int>))]
+[JsonSerializable(typeof(int))]
+internal partial class AppJsonContext : JsonSerializerContext;
+
+var options = new JsonSerializerOptions(AppJsonContext.Default.Options)
+    .AddKetPsiResultConverters<OrderDto>()   // needed on net9.0/net10.0 only
+    .AddKetPsiResultConverters<int>();
+
+var typeInfo = (JsonTypeInfo<Result<OrderDto>>)options.GetTypeInfo(typeof(Result<OrderDto>));
+string json = JsonSerializer.Serialize(result, typeInfo);
+```
+
+Without Native AOT, including plain trimming (`PublishTrimmed`), the factory builds the generic converters on demand, and `AddKetPsiResultConverters<T>()` isn't needed on any target.
 
 ---
 
@@ -450,6 +492,7 @@ return order.ToDto();
 | Handler + metadata | One expression for safe message and full diagnostics |
 | Domain + Service factories | Shared codes and types across services |
 | Throw on API misuse | e.g. `AsFailed` on success is a bug, not a domain error |
+| `closed` record on net11, not a C# `union` | A union is a struct whose `default` holds no state, and it can't derive from `Result`. `closed` gives the same exhaustive `switch` with the same API on every target |
 
 ---
 
@@ -464,6 +507,15 @@ dotnet add package KetPsi.Results
 ```bash
 dotnet build KetPsi.Results.sln
 dotnet test tests/KetPsi.Results.Tests/KetPsi.Results.Tests.csproj
+```
+
+Building requires the .NET 11 SDK. The tests run on `net10.0` and `net11.0`, so the .NET 10 runtime is needed as well.
+
+Native AOT smoke test. It needs the platform's native toolchain, such as the Visual Studio C++ tools on Windows. The process exits with 0 when every check passes:
+
+```bash
+dotnet publish tests/KetPsi.Results.AotSmoke -c Release -f net11.0 -r win-x64
+tests/KetPsi.Results.AotSmoke/bin/Release/net11.0/win-x64/publish/KetPsi.Results.AotSmoke.exe
 ```
 
 Releases are published to NuGet when a tag matching the version in `version.props` is pushed (`X.Y.Z` from `main`, `X.Y.Z-preview.N` from `release/*`).
