@@ -5,7 +5,7 @@ description: How to use the KetPsi.Results .NET library (Result / Result<T>, Err
 
 # KetPsi.Results
 
-A small .NET library (`net8.0`, `net9.0`, `net10.0`) for returning operation outcomes. A `Result` is always exactly one of three states:
+A small .NET library (`net9.0`, `net10.0`, `net11.0`) for returning operation outcomes. A `Result` is always exactly one of three states:
 
 | Status | Concrete types | Carries |
 |---|---|---|
@@ -172,6 +172,18 @@ FailedResult f = r.AsFailed();
 
 These helpers work even when a `Result<T>` is stored in a variable of type `Result`. In your own code, do **not** check for failure with `r is FailedResult`: `FailedResult<T>` does not derive from `FailedResult`. Use `r.IsFailed()` and `r.GetErrors()`. Pattern matching on the exact concrete type (`r is FailedResult<Order> f`) is fine.
 
+**Exhaustive switch on .NET 11.** When the consuming project targets `net11.0` or later, `Result<T>` is a `closed` record (C# 15). A switch over `Result<T>` that handles `SuccessResult<T>`, `InProgressResult<T>` and `FailedResult<T>` is exhaustive, so don't add a `_ =>` arm there. If a case is missing, the compiler reports CS8509. On `net9.0`/`net10.0`, and on multi-targeted projects that include them, keep the discard arm. The non-generic `Result` is never closed, so a switch over `Result` always needs a discard:
+
+```csharp
+// net11.0+
+return result switch
+{
+    SuccessResult<Order> s    => Results.Ok(s.Value),
+    InProgressResult<Order> p => Results.Accepted(value: p.Value),
+    FailedResult<Order> f     => Results.Json(f.ToProblemDetails(), statusCode: f.ToStatusCode()),
+};
+```
+
 ### ErrorResult and ErrorType
 
 - `ErrorResult` exposes `Type`, `Code`, `Message` and `Metadata` (`IReadOnlyDictionary<string, object?>?`, `null` when empty). `ToString()` returns `"code: message"`.
@@ -210,7 +222,7 @@ app.MapGet("/orders/{id:guid}", async (Guid id, OrderService svc, CancellationTo
 
 ## JSON (System.Text.Json)
 
-Results need converters, because their constructors are internal:
+Every result type and `ErrorResult` carries a `[JsonConverter]` attribute, so the format below works with no setup. Registering the converters explicitly is still supported and harmless:
 
 ```csharp
 var options = new JsonSerializerOptions(JsonSerializerDefaults.Web).AddKetPsiResultConverters();   // safe to call twice
@@ -230,7 +242,16 @@ Wire format (property names follow the naming policy):
 
 - Deserialize into `Result<T>` or `Result`. Concrete targets like `SuccessResult<T>` also work, but throw `JsonException` when the status doesn't match.
 - Success and InProgress payloads of `Result<T>` require `value`. Failed payloads require a non-empty `errors` array. `status` is required.
-- Metadata values come back as `JsonElement`, not their original CLR types.
+- Metadata values come back as `JsonElement`, not their original CLR types. With a source-generated context that doesn't list a metadata value's type, primitives, `Guid` and dates are written as-is and anything else as an invariant string, so an enum is written by name.
+
+### Native AOT
+
+The library is AOT- and trim-safe. In a Native AOT app:
+
+- List each result type **and** its payload type in the `JsonSerializerContext` (`Result<OrderDto>` and `OrderDto`, `Result<int>` and `int`). The generator doesn't look inside the result converters.
+- Serialize with `JsonTypeInfo<T>`, e.g. `JsonSerializer.Serialize(r, (JsonTypeInfo<Result<OrderDto>>)options.GetTypeInfo(typeof(Result<OrderDto>)))`. Never use the overloads that take only `options`.
+- If the app targets **net9.0 or net10.0**, call `options.AddKetPsiResultConverters<T>()` for every payload type `T`. Without it, serializing throws `NotSupportedException` naming the missing call. On **net11.0** this isn't needed.
+- You don't need `AddKetPsiResultConverters<T>()` without Native AOT; JIT and `PublishTrimmed` apps are fine without it.
 
 ## Paging
 

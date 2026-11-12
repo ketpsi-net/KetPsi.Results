@@ -1,3 +1,6 @@
+﻿using System.Text.Json.Serialization;
+using KetPsi.Results.Serialization;
+
 namespace KetPsi.Results;
 
 /// <summary>
@@ -5,6 +8,7 @@ namespace KetPsi.Results;
 /// Contains a structural category, a stable machine-readable code,
 /// a human-readable message, and optional diagnostic metadata.
 /// </summary>
+[JsonConverter(typeof(ErrorResultJsonConverter))]
 public record ErrorResult
 {
     /// <summary>Gets the structural category of the error.</summary>
